@@ -34,6 +34,7 @@ void Tdiag(int ngp, double mu, double x0, double xNp1, double *x, double *ekin, 
 {
   double DeltaX = (xNp1 - x0) / (double)(ngp+1);   // L = x(N+1) - x0
 
+ // verbose = 4;
   if (verbose > 0) {
     printf("FFT  with %d grid points\n", ngp);
     printf("  mass: %f\n", mu);
@@ -45,8 +46,10 @@ void Tdiag(int ngp, double mu, double x0, double xNp1, double *x, double *ekin, 
   //  note that x0 and xN+1 are not grid points
   //
   int j;
-  for (j = 0; j < ngp; ++j)   
+  for (j = 0; j < ngp; ++j) {  
     x[j] = x0 + DeltaX * (double)(j+1);
+   // cout<<" x["<<j<<"]= "<<x[j]<<endl;
+  }
   if (verbose > 1) {
     printf("grid points:\n");
     for (int j = 0; j < ngp; ++j)
@@ -63,13 +66,15 @@ void Tdiag(int ngp, double mu, double x0, double xNp1, double *x, double *ekin, 
   //  diagonal terms
    /*************new part*************/
    double DeltaK = 2.0*f2/DeltaX;    
+  // cout<<"DeltaK = "<<DeltaK<<endl;
     for( a = 0; a < ngp; a++){
       int kpoint  = a;
+     //  kpoint=-ngp/2+a;
       if(kpoint >= ngp/2) kpoint= kpoint - ngp; 
       // k[x]        = dk*kpoint;
       ekin[a]      = pow(DeltaK*kpoint,2)/(2.0*mu);
+    // cout<<"igp and kpoint ekin="<<a<<"  "<<kpoint<<"  "<<ekin[a]<<endl;
     }
     /************************************/ 
    
 }
- 

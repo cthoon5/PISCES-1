@@ -4,6 +4,8 @@
 #include <ctime>
 #include <vector>
 
+#include <mpi.h>
+
 #include <iomanip>
 #include <fstream>
 #include <iostream>
@@ -38,8 +40,11 @@ using namespace std;
 //
 void Potential::SetVerbose(int v)
 {
+  int rank;
+  MPI_Comm_rank( MPI_COMM_WORLD, &rank );
+
    verbose = v;
-   cout << "Potential::SetVerbose called with " << v << "\n";
+   if(rank==0)cout << "Potential::SetVerbose called with " << v << "\n";
 
 }
 
@@ -54,6 +59,9 @@ void Potential::Setup(const iVec& potflaginp, int nSites, const double *Sites,
 		      int nPntPols, const double *Alphas, const int *ips, const double *Epc,
 		      const double *DmuByDR, const double *PotPara)
 {
+  int rank;
+  MPI_Comm_rank( MPI_COMM_WORLD, &rank );
+
   PotFlags = potflaginp;
 
   switch (PotFlags[0])
@@ -76,11 +84,31 @@ void Potential::Setup(const iVec& potflaginp, int nSites, const double *Sites,
       break;
     default:
       // this should not happen (tested in GetInput)
-      cout << "Potential::Setup: unknown potential for the excess electron: " << PotFlags[0] << "\n";
+      if(rank==0)cout << "Potential::Setup: unknown potential for the excess electron: " << PotFlags[0] << "\n";
       exit(1);
     }
 
   SetupMinMax(); // min and max over the grid can be printed
+}
+
+
+
+double Potential::MinDistCheck(const double *relectron)
+{
+ int intflag;
+ double Rx, Ry, Rz, R2, R;
+ double MinR=50.0;
+  for (int i = 0; i < nSites; ++i) {
+    Rx = relectron[0] - Site[3*i+0];
+    Ry = relectron[1] - Site[3*i+1];
+    Rz = relectron[2] - Site[3*i+2];
+    R2 = Rx*Rx + Ry*Ry + Rz*Rz;
+    R = sqrt(R2);
+   // if(rank==0)cout<<"R = "<<R<<endl;
+    if (MinR > R) MinR=R;
+  }
+
+ return MinR;
 }
 
 
@@ -100,6 +128,9 @@ void Potential::Setup(const iVec& potflaginp, int nSites, const double *Sites,
 double Potential::Evaluate(const double *relectron)
 {
   
+  int rank;
+  MPI_Comm_rank( MPI_COMM_WORLD, &rank );
+
   // compute a list of distances of all sites to the point r=(x,y,z)
   // this is identical for all potentials
   for (int i = 0; i < nSites; ++i) {
@@ -108,14 +139,20 @@ double Potential::Evaluate(const double *relectron)
     Rz[i] = relectron[2] - Site[3*i+2];
     R2[i] = Rx[i]*Rx[i] + Ry[i]*Ry[i] + Rz[i]*Rz[i];
     R[i] = sqrt(R2[i]);
+  //  cout<<"relectron= "<<relectron[0]<<" "<<relectron[1]<<" "<<relectron[2]<<endl;
+  //  cout<<"Site ="<<Site[3*i+0]<<" "<<Site[3*i+1]<<" "<<Site[3*i+2]<<endl;
+  //  cout<<"R["<<i<<"]="<<Rx[i]<<" "<<Ry[i]<<" "<<Rz[i]<<" "<<R[i]<<endl;
     Rminus3[i] = 1.0 / (R2[i] * R[i]);
   }
+  
+ // cout<<"--------------------------------------"<<endl;
+//  cout<<"relectron : "<<relectron[0]<<" "<< relectron[1]<<" "<<relectron[2]<< endl;
 
 
   switch (PotFlags[0])
     {
     case 0:
-      cout << "Error in EvaluateVel: PotFlag=0, so, no potential has been set up so far.\n";
+      if(rank==0)cout << "Error in EvaluateVel: PotFlag=0, so, no potential has been set up so far.\n";
       exit(1);
       break;
     case 1:
@@ -137,7 +174,7 @@ double Potential::Evaluate(const double *relectron)
       return EvaluateSphericalPotential(relectron);
       break ;  
     default:
-      cout << "Error in EvaluateVel: unknown PotFlag = " << PotFlags[0] << "; this should not happen\n";
+      if(rank==0)cout << "Error in EvaluateVel: unknown PotFlag = " << PotFlags[0] << "; this should not happen\n";
       exit(1);
     } 
   // never ever get here
@@ -168,7 +205,7 @@ void Potential:: EvaluateGradient(
    switch (PotFlags[0])
    {
    case 0:
-      cout << "Error in EvaluateVel: so far no potential has been set up.\n";
+      if(rank==0)cout << "Error in EvaluateVel: so far no potential has been set up.\n";
       exit(1);
       break;
    case 1: // this should work for 2 as well
@@ -177,7 +214,7 @@ void Potential:: EvaluateGradient(
       EvaluateDPPGTOPGradient(relectron,Grad, tmu, mu_cross_mu, wavefn,  WaterN);
       break;
    default:
-      cout << "Error in EvaluateGradient: unknown PotFlags[0]; this should not happen\n";
+      if(rank==0)cout << "Error in EvaluateGradient: unknown PotFlags[0]; this should not happen\n";
       exit(1);
    }
 
@@ -212,15 +249,25 @@ void Potential::SetupDPPGTOP(
                             )
 { 
 
+  int rank;
+  MPI_Comm_rank( MPI_COMM_WORLD, &rank );
+
   nReturnEnergies = 5;
   ReturnEnergies.resize(nReturnEnergies); // Vpc, Vind, Vrep, Vpol, and Vtotal
 
+  //progress_timer tmr("SetupDPPGTOP:", verbose);
+  
 
   // Flags
   DampType        = PotFlags[1];  // GTO or effective-R
   SigmaOFlag      = PotFlags[2];  // Separate scaling for GTOs on O  
   PolType         = PotFlags[3];  // none, single, distributed, or fully self-consistent polarizable sites
   AdiabaticPolPot = PotFlags[4];  // adiabatic potential or its 1st-order expression:  -0.5*a/R**4 
+
+
+  //Set the distance cut-off for interpolation, Rtol
+   Rtol = PotPara[10];
+  
 
   // set parameters as called for by flags
   Alpha = PotPara[0];
@@ -240,7 +287,7 @@ void Potential::SetupDPPGTOP(
       PolDamping = fabs(PotPara[1]);      // -0.5*r^4/r0^3 + r^3/r0^2 + 0.5*r0   (do not ponder, plot)
       break;
     default: 
-      cout << " Potential::SetupDPPGTOP DampFlag this should never happen.\n"; exit(1);
+      if(rank==0)cout << " Potential::SetupDPPGTOP DampFlag this should never happen.\n"; exit(1);
     }
   if (AdiabaticPolPot == 1)
     EpsDrude = PotPara[6];
@@ -249,37 +296,37 @@ void Potential::SetupDPPGTOP(
   if (verbose > 0) {
     switch (PotFlags[0])
       {
-      case 1: cout << "DPP6SP potential:  6s GTO Vrep plus Polarization\n"; break;
-      case 2: cout << "DPP12SP potential:  12s GTO Vrep plus Polarization\n"; break;
-      case 3: cout << "DPP12SP potential:  4s STO Vrep plus Polarization\n"; break;
-      case 4: cout << "DPP12SP potential:  no Vrep, but Polarization\n"; break;
-      default: cout << "Potential::SetupDPPGTOP PotFlag[0] this should never happen.\n"; exit(1);
+      case 1: if(rank==0)cout << "DPP6SP potential:  6s GTO Vrep plus Polarization\n"; break;
+      case 2: if(rank==0)cout << "DPP12SP potential:  12s GTO Vrep plus Polarization\n"; break;
+      case 3: if(rank==0)cout << "DPP12SP potential:  4s STO Vrep plus Polarization\n"; break;
+      case 4: if(rank==0)cout << "DPP12SP potential:  no Vrep, but Polarization\n"; break;
+      default: if(rank==0)cout << "Potential::SetupDPPGTOP PotFlag[0] this should never happen.\n"; exit(1);
       } 
-    cout << "PotPara 0: " << PotPara[0] << " (alpha)\n";
-    cout << "PotPara 1: " << PotPara[1] << " (damping length for polarizable sites [Bohr])\n";
-    cout << "PotPara 2: " << PotPara[2] << " (sigma for Vrep scaling)\n";
-    cout << "PotPara 3: " << PotPara[3] << " (Coulomb damping length [Bohr])\n";
-    cout << "PotPara 4: " << PotPara[4] << " (Dipole damping length [Bohr])\n";
+    if(rank==0)cout << "PotPara 0: " << PotPara[0] << " (alpha)\n";
+    if(rank==0)cout << "PotPara 1: " << PotPara[1] << " (damping length for polarizable sites [Bohr])\n";
+    if(rank==0)cout << "PotPara 2: " << PotPara[2] << " (sigma for Vrep scaling)\n";
+    if(rank==0)cout << "PotPara 3: " << PotPara[3] << " (Coulomb damping length [Bohr])\n";
+    if(rank==0)cout << "PotPara 4: " << PotPara[4] << " (Dipole damping length [Bohr])\n";
     if (SigmaOFlag == 1)
-	cout << "PotPara 4: " << PotPara[5] << " (separate sigma for O-sites scaling)\n";
-    cout << "DampType = " << DampType; 
+	if(rank==0)cout << "PotPara 4: " << PotPara[5] << " (separate sigma for O-sites scaling)\n";
+    if(rank==0)cout << "DampType = " << DampType; 
     switch (DampType)
       {
-      case 1: cout << " (GTO damping as in the Drude code)\n"; break;
-      case 2: cout << " (Distance Damping)\n"; break;
-      default: cout << " Potential::SetupDPPGTOP DampFlag this should never happen.\n"; exit(1);
+      case 1: if(rank==0)cout << " (GTO damping as in the Drude code)\n"; break;
+      case 2: if(rank==0)cout << " (Distance Damping)\n"; break;
+      default: if(rank==0)cout << " Potential::SetupDPPGTOP DampFlag this should never happen.\n"; exit(1);
       } 
   }
 
   
   int nWater = nr / 4;  // DPP uses 4 Sites per Water in the order O, H, H, M
   if (nr % 4 != 0) 
-    {cout << "SetupDPPGTOP: no of sites " << nr << " is not a multiple of 4\n"; exit(1);}
+    {if(rank==0)cout << "SetupDPPGTOP: no of sites " << nr << " is not a multiple of 4\n"; exit(1);}
   SetSites(nr, r);
   SetCharges(nq, q, iq);
   if (PolType == 3 ) {
     if (verbose > 0) {
-    cout << "Warning: " << nd << " point dipoles from the water model are ignored.\n"
+    if(rank==0)cout << "Warning: " << nd << " point dipoles from the water model are ignored.\n"
 	 << "  This assumes that these dipoles come from water-water induction.\n"
 	 << "  If this is not true, changes in the code are needed.\n";
     }
@@ -293,9 +340,9 @@ void Potential::SetupDPPGTOP(
     {
     case 1:
       if (AdiabaticPolPot == 1)
-	cout << " Full adiabatic expression for the polarization potential with EpsDrude = " << EpsDrude << " Hartree\n";
+	if(rank==0)cout << " Full adiabatic expression for the polarization potential with EpsDrude = " << EpsDrude << " Hartree\n";
       else 
-	cout << " Standard polarization potential of non-interacting sites\n";
+	if(rank==0)cout << " Standard polarization potential of non-interacting sites\n";
       // single site per water isotropic polarisabilities
       nPPS = nWater;
       PPS.resize(nPPS);
@@ -306,7 +353,7 @@ void Potential::SetupDPPGTOP(
       }
       break;
     case 2:
-      cout << " Interacting atomic polarizability on each water, but non-interacting waters\n";
+      if(rank==0)cout << " Interacting atomic polarizability on each water, but non-interacting waters\n";
 
       // very dirty, just for testing, relies on O, H, H, M order of Sites in DPP
       if (nMolPol != nWater) {
@@ -339,9 +386,11 @@ void Potential::SetupDPPGTOP(
       break;
     case 3:   // self-consistent-polarizability 
     case 33:  // self-consistent-polaribility-33
+    case 5:  // self-consistent-polaribility-5
+    case 6:  // self-consistent-polaribility-5
      
       {
-	if (verbose > 0) cout << "\nSelf-consistent water-water and water-electron polarizabilities\n";
+	if (verbose > 0) if(rank==0)cout << "\nSelf-consistent water-water and water-electron polarizabilities\n";
 	
 	// treat as one big MolPol
 	if (nMolPol != 1) {
@@ -361,6 +410,8 @@ void Potential::SetupDPPGTOP(
 	MolPol[0].dT_x.resize(npp*npp*9);
 	MolPol[0].dT_y.resize(npp*npp*9);
 	MolPol[0].dT_z.resize(npp*npp*9);
+	MolPol[0].Tensor.resize(npp*npp*9);
+ 
 	dVec Rpps; Rpps.resize(3*npp);  // needed for calling ComputeInvA
 	for (int i = 0; i < npp; ++i) {
 	  MolPol[0].SiteList[i] = ip[i];
@@ -379,6 +430,10 @@ void Potential::SetupDPPGTOP(
 	// so far aThole=0.3  this should be different for DPP and DPP2
 	ComputeInvA(npp, &Rpps[0], &MolPol[0].Alpha[0], 0.3, &MolPol[0].InvA[0], 1);
         
+        // Calculate Tensor Tae Hoon Choi
+        //void BuildTensor(int nSites, const double *R, const double *alpha, double aThole, double *Tensor);
+	//BuildTensor(npp, &Rpps[0], &MolPol[0].Alpha[0], 0.3, &MolPol[0].Tensor[0]);
+
         //vkv 3rd march 2012
 	// building the supermatrix for the derivatives of Tij, which is defined in DerivDDTensor
         //
@@ -393,15 +448,15 @@ void Potential::SetupDPPGTOP(
 	double done = 1.0;
 	int one = 1;
 	int n = 3*npp;
-	dgemv("N", &n, &n, &done, &(MolPol[0].InvA[0]), &n, &epc[0], &one, &dzero, &Rpps[0], &one);
-	VpolWaterWater = -0.5 * ddot(&n, &epc[0], &one, &Rpps[0], &one);
-	cout << "Water-Water polarization energy = " << VpolWaterWater << "\n";
+      //dgemv("N", &n, &n, &done, &(MolPol[0].InvA[0]), &n, &epc[0], &one, &dzero, &Rpps[0], &one);
+      //VpolWaterWater = -0.5 * ddot(&n, &epc[0], &one, &Rpps[0], &one);
+	if(rank==0)cout << "Water-Water polarization energy = " << VpolWaterWater << "\n";
 
 /*testing the supermatrix
         for (int i = 0; i < npp ; ++i)
             { for (int j = 0 ; j < npp ; ++j)
                   { for (int k = 0; k < 27 ; ++k)
-                        {cout << "A[k] = "  << MolPol[0].dTij[i*npp*27 + j*27 + k] << endl; 
+                        {if(rank==0)cout << "A[k] = "  << MolPol[0].dTij[i*npp*27 + j*27 + k] << endl; 
                         } 
                    
                   }
@@ -409,9 +464,9 @@ void Potential::SetupDPPGTOP(
         exit(1) ;
 */
 	if (verbose > 1) {
-	  cout << "List of Polarizable sites, and the external (point-charge) field\n"; 
+	  if(rank==0)cout << "List of Polarizable sites, and the external (point-charge) field\n"; 
 	  for (int i = 0; i < MolPol[0].nAtoms; ++i)
-	    printf("%3i at Site %i alpha=%9.4f  R=(%f, %f, %f)  Epc=(%f, %f, %f)\n", 
+	    if(rank==0)printf("%3i at Site %i alpha=%9.4f  R=(%f, %f, %f)  Epc=(%f, %f, %f)\n", 
 		   i, MolPol[0].SiteList[i], MolPol[0].Alpha[i],
 		   Rpps[3*i+0],  Rpps[3*i+1], Rpps[3*i+2],
 		   MolPol[0].Epc[3*i+0],  MolPol[0].Epc[3*i+1],  MolPol[0].Epc[3*i+2]);
@@ -422,7 +477,7 @@ void Potential::SetupDPPGTOP(
      case 4:
      {
 
-	cout << "\nSelf-consistent water-water and water-electron polarizabilities\n"
+	if(rank==0)cout << "\nSelf-consistent water-water and water-electron polarizabilities\n"
 	     << "with one polarizable site per water\n";
 	
 	npp = nWater;
@@ -447,29 +502,29 @@ void Potential::SetupDPPGTOP(
 	  Rpps[3*i+0] = r[3*msite+0];
 	  Rpps[3*i+1] = r[3*msite+1];
 	  Rpps[3*i+2] = r[3*msite+2];
-	  //cout << "M-site???? " << i << " (" << Rpps[3*i+0] * Bohr2Angs << ", " << Rpps[3*i+1] * Bohr2Angs << ", "  << Rpps[3*i+2] * Bohr2Angs << ")\n"; 
+	  //if(rank==0)cout << "M-site???? " << i << " (" << Rpps[3*i+0] * Bohr2Angs << ", " << Rpps[3*i+1] * Bohr2Angs << ", "  << Rpps[3*i+2] * Bohr2Angs << ")\n"; 
 	}
 
 	// compute Fields of point charges at M-sites
 	// positions of the M-sites are in Rpps
 //	double GroupCutoff = 2.0; // cutoff for point charges polarizing point polarizabilities  (M-site H distance is 1.56 Bohr)
 //        double tholeDC_damp = 0.23 ; 
-//	cout << "GroupCutOff = " << GroupCutoff << "\n";
-//	cout << "Alpha = " << Alpha << "\n";
+//	if(rank==0)cout << "GroupCutOff = " << GroupCutoff << "\n";
+//	if(rank==0)cout << "Alpha = " << Alpha << "\n";
 //	for (int i = 0; i < npp; ++i) {
-//	  cout << "Field at polarizable Site " << i << ", which is site " << MolPol[0].SiteList[i] << "\n";
+//	  if(rank==0)cout << "Field at polarizable Site " << i << ", which is site " << MolPol[0].SiteList[i] << "\n";
 //	  MolPol[0].Epc[3*i+0] = 0.0;
 //	  MolPol[0].Epc[3*i+1] = 0.0;
 //	  MolPol[0].Epc[3*i+2] = 0.0;
 //	  for (int jq = 0; jq < nq; ++jq) {
 //	    int iqsite = iq[jq];
 //	    double qj = q[jq];
-//	    cout << "  Charge " << jq << " (q=" << qj << ") at Site " << iqsite;
+//	    if(rank==0)cout << "  Charge " << jq << " (q=" << qj << ") at Site " << iqsite;
 //	    double Rx = Rpps[3*i+0] - r[3*iqsite+0];  // vector from point charge to polarizable site
 //	    double Ry = Rpps[3*i+1] - r[3*iqsite+1];
 //	    double Rz = Rpps[3*i+2] - r[3*iqsite+2];
 //	    double distance = sqrt(Rx*Rx + Ry*Ry + Rz*Rz);
-//	    cout << " is at distance of " << distance << "\n";
+//	    if(rank==0)cout << " is at distance of " << distance << "\n";
 //	    if (distance > GroupCutoff) {
 //	      void FieldOfCharge(const double q, const double *rq, const double *r, double *e, 
 //                                const double damp, double alpha_Mol);
@@ -478,7 +533,7 @@ void Potential::SetupDPPGTOP(
 //	      MolPol[0].Epc[3*i+0] += field[0];
 //	      MolPol[0].Epc[3*i+1] += field[1];
 //	      MolPol[0].Epc[3*i+2] += field[2];
-//	      cout << "        making a field of (" << field[0] << ", " << field[1] << ", " << field[2] << ")\n";
+//	      if(rank==0)cout << "        making a field of (" << field[0] << ", " << field[1] << ", " << field[2] << ")\n";
 //	    }	
 //	  }
 //	}
@@ -496,12 +551,12 @@ void Potential::SetupDPPGTOP(
 	int n = 3*npp;
 //	dgemv("N", &n, &n, &done, &(MolPol[0].InvA[0]), &n, &epc[0], &one, &dzero, &Rpps[0], &one);
 //	VpolWaterWater = -0.5 * ddot(&n, &epc[0], &one, &Rpps[0], &one);
-	cout << "Water-Water polarization energy = " << VpolWaterWater << "\n";
+	if(rank==0)cout << "Water-Water polarization energy = " << VpolWaterWater << "\n";
 
 	if (verbose > 1) {
-	  cout << "List of Polarizable sites, and the external (point-charge) field\n"; 
+	  if(rank==0)cout << "List of Polarizable sites, and the external (point-charge) field\n"; 
 	  for (int i = 0; i < MolPol[0].nAtoms; ++i)
-	    printf("%3i at Site %i alpha=%9.4f  Mu=(%f, %f, %f)  Epc=(%f, %f, %f)\n", 
+	    if(rank==0)printf("%3i at Site %i alpha=%9.4f  Mu=(%f, %f, %f)  Epc=(%f, %f, %f)\n", 
 		   i, MolPol[0].SiteList[i], MolPol[0].Alpha[i],
 		   Rpps[3*i+0],  Rpps[3*i+1], Rpps[3*i+2],
 		   MolPol[0].Epc[3*i+0],  MolPol[0].Epc[3*i+1],  MolPol[0].Epc[3*i+2]);
@@ -509,7 +564,7 @@ void Potential::SetupDPPGTOP(
       }
       break;
     default:
-      cout << " (No polarization potential used.)\n";
+      if(rank==0)cout << " (No polarization potential used.)\n";
     }
     
   // repulsive potential
@@ -528,11 +583,11 @@ void Potential::SetupDPPGTOP(
       RepCoreType = 2;
       break;
     case 4:
-      cout << "No explicit repulsive potential to set up.\n";
+      if(rank==0)cout << "No explicit repulsive potential to set up.\n";
       RepCoreType = 0;
       break;
     default:
-      cout << " Potential::SetupDPPGTOP PotFlags[0] this should never happen.\n"; exit(1);
+      if(rank==0)cout << " Potential::SetupDPPGTOP PotFlags[0] this should never happen.\n"; exit(1);
     }
 
 }
@@ -544,6 +599,9 @@ void Potential::SetupDPPGTOP(
 // the coefficients come supposedly from a Schnitker-Rossky-like procedure
 void Potential::Set6GTORepCore(int nWater)
 {
+  int rank;
+  MPI_Comm_rank( MPI_COMM_WORLD, &rank );
+
   nGauss = 6 * nWater;
   Gauss.resize(2*nGauss);
   GaussSite.resize(nGauss);
@@ -572,7 +630,7 @@ void Potential::Set6GTORepCore(int nWater)
     double sigma = 1.0 / VRepScale;
     for (int j = 1; j < 12; j += 2){
       Gauss[i12+j] *= sigma;
-      //   cout<<" Gauss["<< i12 + j<<" ] = "<< Gauss[i12+j]<<endl; 
+      //   if(rank==0)cout<<" Gauss["<< i12 + j<<" ] = "<< Gauss[i12+j]<<endl; 
     }
   }
 }
@@ -582,6 +640,9 @@ void Potential::Set6GTORepCore(int nWater)
 // the coefficients come from the Schnitker-Rossky procedure (coefficients for p orbitals are ignored)
 void Potential::Set12GTORepCore(int nWater)
 {
+  int rank;
+  MPI_Comm_rank( MPI_COMM_WORLD, &rank );
+
   const int nGpW = 12;
   nGauss = nGpW * nWater;
   GaussSite.resize(nGauss);
@@ -637,6 +698,9 @@ void Potential::Set12GTORepCore(int nWater)
 // the coefficients of the original GTOs come from the Schnitker-Rossky procedure
 void Potential::Set4STORepCore(int nWater)
 {
+  int rank;
+  MPI_Comm_rank( MPI_COMM_WORLD, &rank );
+
   const int nGpW = 4;   // 4 s-type Slaters per water
   nGauss = nGpW * nWater;
   GaussSite.resize(nGauss);
@@ -671,16 +735,19 @@ void Potential::Set4STORepCore(int nWater)
 //
 void Potential::UpdateParameters(const double *PotPara)
 { 
+  int rank;
+  MPI_Comm_rank( MPI_COMM_WORLD, &rank );
+
 
   if (PotFlags[0] == 1 || PotFlags[0] == 2) 
     {
       if (verbose > 0) {
-	cout << "New parameters\n";
-	cout << "PotPara 0: " << PotPara[0] << " (alpha)\n";
-	cout << "PotPara 1: " << PotPara[1] << " (b: damping length for polarizable sites [Bohr])\n";
-	cout << "PotPara 2: " << PotPara[2] << " (sigma for Vrep scaling)\n";
-	cout << "PotPara 3: " << PotPara[3] << " (Coulomb damping length [Bohr])\n";
-	cout << "PotPara 4: " << PotPara[4] << " (Dipole damping length [Bohr])\n";
+	if(rank==0)cout << "New parameters\n";
+	if(rank==0)cout << "PotPara 0: " << PotPara[0] << " (alpha)\n";
+	if(rank==0)cout << "PotPara 1: " << PotPara[1] << " (b: damping length for polarizable sites [Bohr])\n";
+	if(rank==0)cout << "PotPara 2: " << PotPara[2] << " (sigma for Vrep scaling)\n";
+	if(rank==0)cout << "PotPara 3: " << PotPara[3] << " (Coulomb damping length [Bohr])\n";
+	if(rank==0)cout << "PotPara 4: " << PotPara[4] << " (Dipole damping length [Bohr])\n";
       }
 
       Alpha = PotPara[0];
@@ -738,7 +805,7 @@ void Potential::UpdateParameters(const double *PotPara)
       }
     }
   else {
-    cout << "UpdateParameters: So far Potential " << PotFlags[0] << " does not update\n";
+    if(rank==0)cout << "UpdateParameters: So far Potential " << PotFlags[0] << " does not update\n";
     exit(1);
   }
 }
@@ -747,8 +814,11 @@ void Potential::UpdateParameters(const double *PotPara)
 void Potential::UpdateChargeDipole(int nr, double *r, int nq, double *q, int *iq, int nd, double *d, int *id)
 { 
 
+  int rank;
+  MPI_Comm_rank( MPI_COMM_WORLD, &rank );
+
   if (nSites != nr || nCharges != nq || nDipoles != nd) {
-    cout << "You should not be calling UpdateChargeDipole. Call SetupXXX instead.\n";
+    if(rank==0)cout << "You should not be calling UpdateChargeDipole. Call SetupXXX instead.\n";
     exit(1);
   }
 
@@ -774,21 +844,34 @@ void Potential::UpdateChargeDipole(int nr, double *r, int nq, double *q, int *iq
 double Potential::EvaluateDPPGTOP(const double *x)
 {
 
+  // progress_timer tmr("EvaluateDPPGTOP:", verbose);
+
+  int rank;
+  MPI_Comm_rank( MPI_COMM_WORLD, &rank );
+
+
+ //  cout<<"x ="<<x[0]<<" "<<x[1]<<" "<<x[2]<<endl;
+
+  double Vpc, Vind,  Vrep, Vpol; 
+ if (PolType != 5 ) {
   //  potential due to point charges
-  double Vpc =0;
+   Vpc =0;
     Vpc = EvaluateChargePotential(x, DampType, ChargeDamping);
+  //   cout<<"Vpc = "<<Vpc<<endl;
   
   //  potential due to point dipoles
-  double Vind=0;
+   Vind=0;
   Vind = EvaluateDipolePotential(x, DampType, DipoleDamping);
+ //    cout<<"Vind = "<<Vind<<endl;
 
   //  repulsive potential expressed as a sum over s-type GTOs or STOs
-  double Vrep = 0;
+   Vrep = 0;
   if (RepCoreType > 0)
     Vrep = EvaluateRepulsivePotential(x, RepCoreType);
-
+  //   cout<<"Vrep = "<<Vrep<<endl;
+ }
   //  polarization potential
-  double Vpol = 0; 
+   Vpol = 0; 
   switch (PolType)
     {
     case 0:
@@ -809,17 +892,38 @@ double Potential::EvaluateDPPGTOP(const double *x)
       break;
     case 3:  // fully interacting atomic polarizabilities
       Vpol = SelfConsistentPolarizability(x, DampType, PolDamping);
+    //   cout<<"Vpol = "<<Vpol<<endl;
       break;
     case 4:  // case 3: distributed, case 4: single sites
 //      Vpol = SelfConsistentPolarizability(x, DampType, PolDamping);
 //      break;
+    case 5:  // fully interacting atomic polarizabilities
+      Vpol = SelfConsistentPolarizability(x, DampType, PolDamping);
+      Vind = 0.0;
+      break;
+    case 6:  // fully interacting atomic polarizabilities
+      Vpol = SelfConsistentPolarizability(x, DampType, PolDamping);
+      Vind = 0.0;
+      break;
     case 33:
       Vpol = SelfConsistentPolarizability_33(x, DampType, PolDamping) ;
       break; 
     default:
-      cout << "EvaluateDPPGTOP: PolType = " << PolType << ", this should not happen.\n";
+      if(rank==0)cout << "EvaluateDPPGTOP: PolType = " << PolType << ", this should not happen.\n";
       exit(1);
     }
+
+
+ if (x[0] == 0 && x[2] == 0.0) {
+  cout<<" Y: Vpc, Vrep, Vind, Vpol = "<<x[1]<<" "<<Vpc<<" "<<Vrep<<" "<<Vind<<" "<<Vpol<<" "<<endl;
+ }
+
+/*
+ if (x[0] == 0 && x[1] == 0.0) {
+  cout<<" Z: Vpc, Vrep, Vind, Vpol = "<<x[2]<<" "<<Vpc<<" "<<Vrep<<" "<<Vind<<" "<<Vpol<<" "<<endl;
+ }
+*/
+
 
 // TESTING E-WATER ELECTROSTATICS   
 //     Vpc = 0.00000000 ;    //
@@ -828,22 +932,24 @@ double Potential::EvaluateDPPGTOP(const double *x)
 //     Vpol = 0.00000000 ;    //
 
   double Vtotal = Vpc + Vind + Vrep + Vpol;
+// if(rank==0)cout<<"Vpc ="<<Vpc<<endl;
+//  if(rank==0)cout<<"Vind ="<<Vind<<endl;
+// if(rank==0)cout<<"Vrep ="<<Vrep<<endl;
+// if(rank==0)cout<<"Vpol ="<<Vpol<<endl;
 
-
-  ReturnEnergies[0] = Vpc;
-  ReturnEnergies[1] = Vind;
-  ReturnEnergies[2] = Vrep;
-  ReturnEnergies[3] = Vpol;
-  ReturnEnergies[4] = Vtotal;
-
+    ReturnEnergies[0] = Vpc;
+    ReturnEnergies[1] = Vind;
+    ReturnEnergies[2] = Vrep;
+    ReturnEnergies[3] = Vpol;
+    ReturnEnergies[4] = Vtotal;
 
   if (verbose > 0) {
     double v[5] = {Vpc, Vind, Vrep, Vpol, Vtotal};
     CheckMinMax(v);
   }
-  
+
   if (verbose > 1)
-    printf("%10.6f %10.6f %10.6f %14.6e %14.6e %14.6e %14.6e %14.6e\n", 
+    if(rank==0)printf("%10.6f %10.6f %10.6f %14.6e %14.6e %14.6e %14.6e %14.6e\n", 
 	   x[0], x[1], x[2], Vpc, Vind, Vrep, Vpol, Vtotal);
   
   return Vtotal;
@@ -879,21 +985,24 @@ void Potential::SetupDPPTB(int nr, const double *r,                         // s
 			   const double *DmuByDR,                           // devivatives 
 			   const double *PotPara)                           // Parameters 
 { 
+  int rank;
+  MPI_Comm_rank( MPI_COMM_WORLD, &rank );
+
   PotFlags.resize(1);
   PotFlags[0] = 11;
 
   if (verbose > 0) {
-    cout << "DPPTB potential: DPP charges plus Polarization plus Coulomb damping and Vrep from Turi \n";
-    cout << "PotPara 0: " << PotPara[0] << " (alpha)\n";
-    cout << "PotPara 1: " << PotPara[1] << " (b for polarization damping)\n";
-    cout << "PotPara 2: " << PotPara[2] << " (A1 parameter for Coulomb damping for O)\n";
-    cout << "PotPara 3: " << PotPara[3] << " (A1 parameter for Coulomb damping for H (not used))\n";
-    cout << "PotPara 4: " << PotPara[4] << " (B1O parameter of Vrep)\n";
-    cout << "PotPara 5: " << PotPara[5] << " (B1H parameter of Vrep)\n";
-    cout << "PotPara 6: " << PotPara[6] << " (B2O parameter of Vrep)\n";
-    cout << "PotPara 7: " << PotPara[7] << " (B2H parameter of Vrep)\n";
-    cout << "PotPara 8: " << PotPara[8] << " (B3O parameter of Vrep)\n";
-    cout << "PotPara 9: " << PotPara[9] << " (B3H parameter of Vrep)\n";
+    if(rank==0)cout << "DPPTB potential: DPP charges plus Polarization plus Coulomb damping and Vrep from Turi \n";
+    if(rank==0)cout << "PotPara 0: " << PotPara[0] << " (alpha)\n";
+    if(rank==0)cout << "PotPara 1: " << PotPara[1] << " (b for polarization damping)\n";
+    if(rank==0)cout << "PotPara 2: " << PotPara[2] << " (A1 parameter for Coulomb damping for O)\n";
+    if(rank==0)cout << "PotPara 3: " << PotPara[3] << " (A1 parameter for Coulomb damping for H (not used))\n";
+    if(rank==0)cout << "PotPara 4: " << PotPara[4] << " (B1O parameter of Vrep)\n";
+    if(rank==0)cout << "PotPara 5: " << PotPara[5] << " (B1H parameter of Vrep)\n";
+    if(rank==0)cout << "PotPara 6: " << PotPara[6] << " (B2O parameter of Vrep)\n";
+    if(rank==0)cout << "PotPara 7: " << PotPara[7] << " (B2H parameter of Vrep)\n";
+    if(rank==0)cout << "PotPara 8: " << PotPara[8] << " (B3O parameter of Vrep)\n";
+    if(rank==0)cout << "PotPara 9: " << PotPara[9] << " (B3H parameter of Vrep)\n";
   }
 
   ChargeDamping = PotPara[2];  // use only one A for both H and O
@@ -902,7 +1011,7 @@ void Potential::SetupDPPTB(int nr, const double *r,                         // s
 
   int nWater = nr / 4;
   if (nr % 4 != 0) 
-    {cout << "SetupDPPTB: no of sites " << nr << " is not a multiple of 4\n"; exit(1);}
+    {if(rank==0)cout << "SetupDPPTB: no of sites " << nr << " is not a multiple of 4\n"; exit(1);}
   
   SetSites(nr, r);
   SetCharges(nq, q, iq);
@@ -959,6 +1068,9 @@ void Potential::SetupDPPTB(int nr, const double *r,                         // s
 //
 double Potential::EvaluateDPPTB(const double *x)
 {
+
+  int rank;
+  MPI_Comm_rank( MPI_COMM_WORLD, &rank );
 
   // this list has been computed in Evaluate()
   // compute a list of distances of all sites to the point r=(x,y,z)
@@ -1036,7 +1148,7 @@ double Potential::EvaluateDPPTB(const double *x)
   }
 
   if (verbose > 15)
-    printf("%10.6f %10.6f %10.6f %14.6e %14.6e %14.6e %14.6e %14.6e\n", 
+    if(rank==0)printf("%10.6f %10.6f %10.6f %14.6e %14.6e %14.6e %14.6e %14.6e\n", 
 	   x[0], x[1], x[2], Vpc, Vind, Vrep, Vpol, Vtotal);
 
   return Vtotal;
@@ -1057,6 +1169,11 @@ double Potential::EvaluateDPPTB(const double *x)
 double Potential::EvaluateChargePotential(const double *x, int DampFlag, double DampParameter)
 {
 
+  int rank;
+  MPI_Comm_rank( MPI_COMM_WORLD, &rank );
+
+ //  cout<<"x ="<<x[0]<<" "<<x[1]<<" "<<x[2]<<endl;
+   //progress_timer tmr("EvaluateChargePotential:", verbose); 
    double Vpc = 0;
    switch (DampFlag)
      {
@@ -1078,11 +1195,15 @@ double Potential::EvaluateChargePotential(const double *x, int DampFlag, double 
 	     // old not quite so smooth fn: Reff = 0.5 * (Reff*Reff/DampParameter + DampParameter);
 	   }
 	   Vpc += -Charge[i]/Reff;
+      //    if (x[0] == 0 && x[1] == 0.0 && x[2]==10) { 
+      //     cout<<"Charge["<<i<<"] = "<<Charge[i]<<", Reff = "<<Reff<<"Vpc = "<<Vpc<<endl;
+      //   }
+          // cout<<"Vpc = "<<Vpc<<endl;
 	 }
        }
        break;
      default:
-       cout << "Potential::EvaluateChargePotential, DampFlag=" << DampFlag << ", this should not happen.\n"; 
+       if(rank==0)cout << "Potential::EvaluateChargePotential, DampFlag=" << DampFlag << ", this should not happen.\n"; 
        exit(1); 
      }
    return Vpc;
@@ -1100,8 +1221,16 @@ double Potential::EvaluateChargePotential(const double *x, int DampFlag, double 
 //
 double Potential::EvaluateDipolePotential(const double *x, int DampFlag, double DampParameter)
 {
+  int rank;
+  MPI_Comm_rank( MPI_COMM_WORLD, &rank );
+
+
+  //progress_timer tmr("EvaluateDipolePotential:", verbose);
 
   double Vpd = 0;
+
+ // if(rank==0)cout <<"DampFlag: "<<DampFlag<<endl;
+
    switch (DampFlag)
      {
      case 1:
@@ -1133,7 +1262,7 @@ double Potential::EvaluateDipolePotential(const double *x, int DampFlag, double 
        }
        break;
      default:
-       cout << "Potential::EvaluateDipolePotential, DampFlag=" << DampFlag << ", this should not happen.\n"; 
+       if(rank==0)cout << "Potential::EvaluateDipolePotential, DampFlag=" << DampFlag << ", this should not happen.\n"; 
        exit(1); 
      }
    return Vpd;
@@ -1153,6 +1282,11 @@ double Potential::EvaluateDipolePotential(const double *x, int DampFlag, double 
 double Potential::EvaluateRepulsivePotential(const double *x, int RepCoreFlag)
 {
 
+  int rank;
+  MPI_Comm_rank( MPI_COMM_WORLD, &rank );
+
+  //progress_timer tmr("EvaluateRepulsivePotential:", verbose);
+
    double Vrep = 0;
    switch (RepCoreFlag)
      {
@@ -1168,12 +1302,13 @@ double Potential::EvaluateRepulsivePotential(const double *x, int RepCoreFlag)
        {
 	 for (int i = 0; i < nGauss; ++i) {
 	   int igs = GaussSite[i];
+          // cout<<" Gauss[2*i+1] , Gauss[2*i] "<<Gauss[2*i+1]<<" "<<Gauss[2*i]<<endl;
 	   Vrep +=  Gauss[2*i+1] * exp(-Gauss[2*i] * R[igs]);
 	 }
        }
        break;
      default:
-       cout << "Potential::EvaluateRepulsivePotential: RepCoreFlag = " << RepCoreFlag << ", this should not happen\n"; 
+       if(rank==0)cout << "Potential::EvaluateRepulsivePotential: RepCoreFlag = " << RepCoreFlag << ", this should not happen\n"; 
        exit(1);
      }
    return Vrep;
@@ -1195,6 +1330,9 @@ double Potential::EvaluateRepulsivePotential(const double *x, int RepCoreFlag)
 //
 double Potential::EvaluatePolPot(const double *x, int DampFlag, double DampParameter)
 {
+  int rank;
+  MPI_Comm_rank( MPI_COMM_WORLD, &rank );
+
    double Spol = 0;
    switch (DampFlag)
      {
@@ -1229,7 +1367,7 @@ double Potential::EvaluatePolPot(const double *x, int DampFlag, double DampParam
        }
        break;
      default:
-       cout << "Potential::EvaluatePolPot, DampFlag=" << DampFlag << ", this should not happen.\n"; 
+       if(rank==0)cout << "Potential::EvaluatePolPot, DampFlag=" << DampFlag << ", this should not happen.\n"; 
        exit(1); 
      }
    return Spol;
@@ -1250,6 +1388,9 @@ double Potential::EvaluatePolPot(const double *x, int DampFlag, double DampParam
 //
 double Potential::EvaluateMolecularPolarizableSites(const double *x, int DampFlag, double DampParameter)
 {
+
+  int rank;
+  MPI_Comm_rank( MPI_COMM_WORLD, &rank );
 
   double Spol = 0;
 
@@ -1281,7 +1422,7 @@ double Potential::EvaluateMolecularPolarizableSites(const double *x, int DampFla
 	  case 1:
 	    // Thole, Gauss damping as in the Drude code is not enough
 	    gij *= (1.0 - exp(-DampParameter * R[SiteIndex] * R2[SiteIndex]));
-	    printf("%20.12f", gij);
+	    if(rank==0)printf("%20.12f", gij);
 	    break;
 	  case 2:
 	    // effective-r damping
@@ -1296,7 +1437,7 @@ double Potential::EvaluateMolecularPolarizableSites(const double *x, int DampFla
 	    }
 	    break;
 	  default:
-	    cout << "EvaluateMolecularPolarizableSites: DampFlag=" << DampFlag << ", this should never happen\n";
+	    if(rank==0)cout << "EvaluateMolecularPolarizableSites: DampFlag=" << DampFlag << ", this should never happen\n";
 	    exit(1);
 	  }
 	Efield[3*i+0] = gij * Rx[SiteIndex];
@@ -1308,33 +1449,36 @@ double Potential::EvaluateMolecularPolarizableSites(const double *x, int DampFla
       double done = 1.0;
       int one = 1;
       double *InvA = &(MolPol[imol].InvA[0]);
+
       dgemv("N", &n, &n, &done, InvA, &n, &Efield[0], &one, &dzero, &mu[0], &one);
       // compute Efield * dipoles
       Spol += ddot(&n, &Efield[0], &one, &mu[0], &one);
             
       int debug = 0;
       if (debug > 0) {
-	printf("Electron is at (%f, %f, %f)\n", x[0], x[1], x[2]);
+	if(rank==0)printf("Electron is at (%f, %f, %f)\n", x[0], x[1], x[2]);
 	for (int i = 0; i < nAtoms; ++i) {
 	  int SiteIndex = MolPol[imol].SiteList[i];
-	  printf("Dipole induced on Site %i of Molecule %i (SiteIndex = %i) is (%f, %f, %f)\n", 
+	  if(rank==0)printf("Dipole induced on Site %i of Molecule %i (SiteIndex = %i) is (%f, %f, %f)\n", 
 		 i, imol, SiteIndex, mu[3*i], mu[3*i+1], mu[3*i+2]);
 	}
 	double e = ddot(&n, &Efield[0], &one, &mu[0], &one);
-	printf("Epol = %f\n", e);
-	printf("Reversing field\n");
+	if(rank==0)printf("Epol = %f\n", e);
+	if(rank==0)printf("Reversing field\n");
 	double mo = -1.0;
 	dscal(&n, &mo, &Efield[0], &one);
+
+
 	dgemv("N", &n, &n, &done, InvA, &n, &Efield[0], &one, &dzero, &mu[0], &one);
 	for (int i = 0; i < nAtoms; ++i) {
 	  int SiteIndex = MolPol[imol].SiteList[i];
-	  printf("Dipole induced on Site %i of Molecule %i (SiteIndex = %i) is (%f, %f, %f)\n", 
+	  if(rank==0)printf("Dipole induced on Site %i of Molecule %i (SiteIndex = %i) is (%f, %f, %f)\n", 
 		 i, imol, SiteIndex, mu[3*i], mu[3*i+1], mu[3*i+2]);
 	}
 	double e2 = ddot(&n, &Efield[0], &one, &mu[0], &one);
-	printf("Epol = %f   RelError = %e\n", e2, 2.0*fabs(e-e2)/(e+e2));
+	if(rank==0)printf("Epol = %f   RelError = %e\n", e2, 2.0*fabs(e-e2)/(e+e2));
       
-	cout.flush();
+	if(rank==0)cout.flush();
 
       }
     } // endfor (int imol = 0; imol < nMolPol; ++imol)
@@ -1351,14 +1495,23 @@ double Potential::EvaluateMolecularPolarizableSites(const double *x, int DampFla
 double Potential::SelfConsistentPolarizability(const double *x, int DampFlag, double DampParameter)
 {
 
+  int rank;
+  MPI_Comm_rank( MPI_COMM_WORLD, &rank );
+
   dVec Efield;
   dVec mu;
 
 
+   //progress_timer tmr("SelfConsistentPolarizability:", verbose);
 
   // compute electron's Efield at atomic sites
   int nAtoms = MolPol[0].nAtoms;
   int n = 3*nAtoms;  // dimension of InvA and Efield, and mu
+
+
+
+  // if(rank==0)cout<< "nAtoms*3:" << n << endl;
+
   Efield.resize(n);
   mu.resize(n);
   double gij;
@@ -1384,57 +1537,88 @@ double Potential::SelfConsistentPolarizability(const double *x, int DampFlag, do
 	}
 	break;
       default:
-	cout << "SelfConsistentPolarizability: DampFlag=" << DampFlag << ", this should never happen\n";
+	if(rank==0)cout << "SelfConsistentPolarizability: DampFlag=" << DampFlag << ", this should never happen\n";
 	exit(1);
       }
+
     Efield[3*i+0] = gij * Rx[SiteIndex];
-     Efield[3*i+1] = gij * Ry[SiteIndex];
+    Efield[3*i+1] = gij * Ry[SiteIndex];
     Efield[3*i+2] = gij * Rz[SiteIndex];
+
   }
 
   // add the point charges' field here
   // but use a blas call instead of this:
 
-  for (int k = 0; k < n; ++k)
+  for (int k = 0; k < n; ++k) {
     Efield[k] += MolPol[0].Epc[k];
+   // Efield[k] = MolPol[0].Epc[k];
+    //if(rank==0)cout<<"Efield["<<k<<"]="<<Efield[k]<<endl;
+  }
 
+// Self-consistent calculation for dipole moment --- Tae Hoon Choi
+
+// if(rank==0)cout<<" Start sef-consistent calculation for dipole moment --- Tae Hoon Choi"<<endl;
+//void SCF_inducedDipole(int nSites, const double *Tensor, const double *alpha, double aThole, double *Efield, double *mu);
+//   SCF_inducedDipole(nAtoms, &MolPol[0].Tensor[0], &MolPol[0].Alpha[0], 0.3, &Efield[0], &mu[0]);
+
+ // for (int i =0; i < n; ++i)
+ //  if(rank==0)cout<<"first mu["<<i<<"i] ="<<mu[i]<<endl;
+
+  //
+  //
   // compute dipoles induced by Efield
   double dzero = 0.0;
   double done = 1.0;
   int one = 1;
-  dgemv("N", &n, &n, &done, &(MolPol[0].InvA[0]), &n, &Efield[0], &one, &dzero, &mu[0], &one);
+  
+ // if(rank==0)cout << "start dgemv in SCP --------"<<endl;
+
+//  for (int i = 0; i < n; ++i)
+//    for (int j = 0; j < n; ++j)
+//    if(rank==0)cout<<"MolPol[0].InvA["<<n*i+j<<"] ="<<MolPol[0].InvA[n*i+j]<<endl;
+
+
+//  dgemv("N", &n, &n, &done, &(MolPol[0].InvA[0]), &n, &Efield[0], &one, &dzero, &mu[0], &one);
+  dsymv("L", &n, &done, &(MolPol[0].InvA[0]), &n, &Efield[0], &one, &dzero, &mu[0], &one);
+
+//   for (int i =0; i < n; ++i)
+//    if(rank==0)cout<<"Second mu["<<i<<"i] ="<<mu[i]<<endl;
+
   // compute Efield * dipoles
- double Vpol = -0.5 * ddot(&n, &Efield[0], &one, &mu[0], &one) - VpolWaterWater;
+  double Vpol = -0.5 * ddot(&n, &Efield[0], &one, &mu[0], &one) - VpolWaterWater;
+
+
 //  double Vpol = -0.5 * ddot(&n, &Efield[0], &one, &mu[0], &one) ;
-//  cout<< "VpolWaterWater ="<<VpolWaterWater<<"\n";
+//  if(rank==0)cout<< "VpolWaterWater ="<<VpolWaterWater<<"\n";  
 
 
 
 //  for (int k = 0; k < n; ++k)
-//   cout<<"in energy mu["<<k<<"]="<<mu[k]<<"\n";
+//   if(rank==0)cout<<"in energy mu["<<k<<"]="<<mu[k]<<"\n";
   
   int debug = 0;
   if (debug > 0) {
-    printf("Electron is at (%f, %f, %f) Angs\n", x[0], x[1], x[2]);
+    if(rank==0)printf("Electron is at (%f, %f, %f) Angs\n", x[0], x[1], x[2]);
     for (int i = 0; i < nAtoms; ++i) {
       int SiteIndex = MolPol[0].SiteList[i];
-      printf("Dipole, in Debye, induced on Site %i of Molecule %i (SiteIndex = %i) is (%f, %f, %f)\n", 
+      if(rank==0)printf("Dipole, in Debye, induced on Site %i of Molecule %i (SiteIndex = %i) is (%f, %f, %f)\n", 
 	     i, 0, SiteIndex, mu[3*i]*AU2Debye, mu[3*i+1]*AU2Debye, mu[3*i+2]*AU2Debye);
     }
-    printf("Epol = %f Hartree = %f eV\n", Vpol, Vpol*AU2EV);
-    //printf("Reversing field\n");
+    if(rank==0)printf("Epol = %f Hartree = %f eV\n", Vpol, Vpol*AU2EV);
+    //if(rank==0)printf("Reversing field\n");
     //double mo = -1.0;
     //dscal(&n, &mo, &Efield[0], &one);
     //dgemv("N", &n, &n, &done, &(MolPol[0].InvA[0]), &n, &Efield[0], &one, &dzero, &mu[0], &one);
     //for (int i = 0; i < nAtoms; ++i) {
     //  int SiteIndex = MolPol[0].SiteList[i];
-    //  printf("Dipole, in Debye, induced on Site %i of Molecule %i (SiteIndex = %i) is (%f, %f, %f)\n", 
+    //  if(rank==0)printf("Dipole, in Debye, induced on Site %i of Molecule %i (SiteIndex = %i) is (%f, %f, %f)\n", 
     //	     i, 0, SiteIndex, mu[3*i]*AU2Debye, mu[3*i+1]*AU2Debye, mu[3*i+2]*AU2Debye);
     //}
     //double e2 = ddot(&n, &Efield[0], &one, &mu[0], &one);
-    //printf("Epol = %f   RelError = %e\n", e2, 2.0*fabs(e-e2)/(e+e2));
+    //if(rank==0)printf("Epol = %f   RelError = %e\n", e2, 2.0*fabs(e-e2)/(e+e2));
     
-    //cout.flush();
+    //if(rank==0)cout.flush();
   }
 
 
@@ -1453,6 +1637,9 @@ double Potential::SelfConsistentPolarizability(const double *x, int DampFlag, do
 double Potential::SelfConsistentPolarizability_33(const double *x, int DampFlag, double DampParameter)
 {
 
+  int rank;
+  MPI_Comm_rank( MPI_COMM_WORLD, &rank );
+
   dVec Efield;
   dVec mu;
 
@@ -1486,7 +1673,7 @@ double Potential::SelfConsistentPolarizability_33(const double *x, int DampFlag,
 	}
 	break;
       default:
-	cout << "SelfConsistentPolarizability: DampFlag=" << DampFlag << ", this should never happen\n";
+	if(rank==0)cout << "SelfConsistentPolarizability: DampFlag=" << DampFlag << ", this should never happen\n";
 	exit(1);
       }
     Efield[3*i+0] = gij * Rx[SiteIndex];
@@ -1508,35 +1695,35 @@ double Potential::SelfConsistentPolarizability_33(const double *x, int DampFlag,
   // compute Efield * dipoles
 // double Vpol = -0.5 * ddot(&n, &Efield[0], &one, &mu[0], &one) - VpolWaterWater;
   double Vpol = -0.5 * ddot(&n, &Efield[0], &one, &mu[0], &one) ;
-//  cout<< "VpolWaterWater ="<<VpolWaterWater<<"\n";
+//  if(rank==0)cout<< "VpolWaterWater ="<<VpolWaterWater<<"\n";
 
 
 
 //  for (int k = 0; k < n; ++k)
-//   cout<<"in energy mu["<<k<<"]="<<mu[k]<<"\n";
+//   if(rank==0)cout<<"in energy mu["<<k<<"]="<<mu[k]<<"\n";
   
   int debug = 0;
   if (debug > 0) {
-    printf("Electron is at (%f, %f, %f) Angs\n", x[0], x[1], x[2]);
+    if(rank==0)printf("Electron is at (%f, %f, %f) Angs\n", x[0], x[1], x[2]);
     for (int i = 0; i < nAtoms; ++i) {
       int SiteIndex = MolPol[0].SiteList[i];
-      printf("Dipole, in Debye, induced on Site %i of Molecule %i (SiteIndex = %i) is (%f, %f, %f)\n", 
+      if(rank==0)printf("Dipole, in Debye, induced on Site %i of Molecule %i (SiteIndex = %i) is (%f, %f, %f)\n", 
 	     i, 0, SiteIndex, mu[3*i]*AU2Debye, mu[3*i+1]*AU2Debye, mu[3*i+2]*AU2Debye);
     }
-    printf("Epol = %f Hartree = %f eV\n", Vpol, Vpol*AU2EV);
-    //printf("Reversing field\n");
+    if(rank==0)printf("Epol = %f Hartree = %f eV\n", Vpol, Vpol*AU2EV);
+    //if(rank==0)printf("Reversing field\n");
     //double mo = -1.0;
     //dscal(&n, &mo, &Efield[0], &one);
     //dgemv("N", &n, &n, &done, &(MolPol[0].InvA[0]), &n, &Efield[0], &one, &dzero, &mu[0], &one);
     //for (int i = 0; i < nAtoms; ++i) {
     //  int SiteIndex = MolPol[0].SiteList[i];
-    //  printf("Dipole, in Debye, induced on Site %i of Molecule %i (SiteIndex = %i) is (%f, %f, %f)\n", 
+    //  if(rank==0)printf("Dipole, in Debye, induced on Site %i of Molecule %i (SiteIndex = %i) is (%f, %f, %f)\n", 
     //	     i, 0, SiteIndex, mu[3*i]*AU2Debye, mu[3*i+1]*AU2Debye, mu[3*i+2]*AU2Debye);
     //}
     //double e2 = ddot(&n, &Efield[0], &one, &mu[0], &one);
-    //printf("Epol = %f   RelError = %e\n", e2, 2.0*fabs(e-e2)/(e+e2));
+    //if(rank==0)printf("Epol = %f   RelError = %e\n", e2, 2.0*fabs(e-e2)/(e+e2));
     
-    //cout.flush();
+    //if(rank==0)cout.flush();
   }
 
 
@@ -1548,6 +1735,9 @@ double Potential::SelfConsistentPolarizability_33(const double *x, int DampFlag,
 
 void Potential::SetupMinMax()
 {
+  int rank;
+  MPI_Comm_rank( MPI_COMM_WORLD, &rank );
+
    switch (PotFlags[0]) 
    {
    case 1:
@@ -1561,7 +1751,7 @@ void Potential::SetupMinMax()
      nContributions = 1; // Vps only
      break;
    default:
-      cout << "SetupMinMax: unknown PotFlag " << PotFlags[0] << "\n"; 
+      if(rank==0)cout << "SetupMinMax: unknown PotFlag " << PotFlags[0] << "\n"; 
       exit(1);
    }
 
@@ -1574,6 +1764,9 @@ void Potential::SetupMinMax()
 void Potential::CheckMinMax(const double *v)
 {
 
+  int rank;
+  MPI_Comm_rank( MPI_COMM_WORLD, &rank );
+
 
    for (int i = 0; i < nContributions; ++i) {
       if (v[i] > MaxV[i]) 
@@ -1585,6 +1778,9 @@ void Potential::CheckMinMax(const double *v)
 
 void Potential::PrintMinMax()
 {
+  int rank;
+  MPI_Comm_rank( MPI_COMM_WORLD, &rank );
+
    if (nContributions > 0) {  // that means MinMax has been initialized at some point
       switch (PotFlags[0])
       {
@@ -1593,16 +1789,16 @@ void Potential::PrintMinMax()
       case 3:
       case 4:
          if (verbose > 0) {    
-           printf("Range of the potential energy at the grid points:\n");
-           printf("  Total potential          :  %10.3e  -  %10.3e\n", MinV[4], MaxV[4]);
-           printf("  Point charge potential   :  %10.3e  -  %10.3e\n", MinV[0], MaxV[0]);
-           printf("  Induced dipole potential :  %10.3e  -  %10.3e\n", MinV[1], MaxV[1]);
-           printf("  Repulsive potential      :  %10.3e  -  %10.3e\n", MinV[2], MaxV[2]);
-           printf("  Polarization potential   :  %10.3e  -  %10.3e\n", MinV[3], MaxV[3]);
+           if(rank==0)printf("Range of the potential energy at the grid points:\n");
+           if(rank==0)printf("  Total potential          :  %10.3e  -  %10.3e\n", MinV[4], MaxV[4]);
+           if(rank==0)printf("  Point charge potential   :  %10.3e  -  %10.3e\n", MinV[0], MaxV[0]);
+           if(rank==0)printf("  Induced dipole potential :  %10.3e  -  %10.3e\n", MinV[1], MaxV[1]);
+           if(rank==0)printf("  Repulsive potential      :  %10.3e  -  %10.3e\n", MinV[2], MaxV[2]);
+           if(rank==0)printf("  Polarization potential   :  %10.3e  -  %10.3e\n", MinV[3], MaxV[3]);
          }
          break;
       default:
-         cout << "PrintMinMax: unknown PotFlag " << PotFlags[0] << "\n"; 
+         if(rank==0)cout << "PrintMinMax: unknown PotFlag " << PotFlags[0] << "\n"; 
          exit(1);
       }
    }
@@ -1620,6 +1816,7 @@ void Potential::PrintMinMax()
 //
 void Potential::SetSites(int n, const double *sites)
 {
+
    nSites = n;
    Site.resize(3*n);
    std::copy(sites, sites+3*n, Site.begin());
@@ -1642,6 +1839,7 @@ void Potential::SetSites(int n, const double *sites)
 //
 void Potential::SetCharges(int n, const double *q, const int *iq)
 {
+
    nCharges = n;
    Charge.resize(n);
    ChargeSite.resize(n);
@@ -1654,6 +1852,7 @@ void Potential::SetCharges(int n, const double *q, const int *iq)
 //
 void Potential::SetDipoles(int n, const double *d, const int *id)
 {
+
    nDipoles = n;
    Dipole.resize(3*n);
    DipoleSite.resize(n);
@@ -1691,12 +1890,31 @@ void Potential::SetGauss(int n, const double *expcoeff, const int *ig)
 
 void Potential::ReportEnergies(int n, double *e)
 {
+
+  int rank;
+  MPI_Comm_rank( MPI_COMM_WORLD, &rank );
+
   if (n != nReturnEnergies) {
-    cout << "Nonono in ReportEnergies.";
+    if(rank==0)cout << "Nonono in ReportEnergies.";
     exit(1);
   }
-  for (int i = 0; i < nReturnEnergies; ++i)
+  for (int i = 0; i < nReturnEnergies; ++i) 
     e[i] = ReturnEnergies[i];
+
+}
+
+double Potential::getRtol()
+{
+
+  return Rtol; 
+
+}
+
+int Potential::getPolType()
+{
+
+  if ( PotFlags[0] == 1021) return PolFlagCsixty;
+  else  return PolType; 
 
 }
 

@@ -18,8 +18,6 @@
 #include "DVR.h"
 #include "lapackblas.h"
 #include "timer.hpp"
-#include "VectorFFT.hpp"
-
 
 
 //#define HAVE_LAPACK
@@ -140,36 +138,13 @@ int DVR::larnoldi(int ng, int nev, int maxsub, int maxiter, int ptol, double *ev
 
 //if (DiagCount != 1) ncv=20;
 
-  unsigned long long int bigsize;
-  unsigned long long int un_ng = ng;
-  unsigned long long int un_ncv = ncv;
-  std::cout << "2 un_ng= " << un_ng << "\n";
-  std::cout << "2 un_ncv= " << un_ncv << "\n";
-  std::cout << "2 bigsize= " << bigsize << "\n";
-
   // arrays for the ARPACK
   int lworkl = ncv * (ncv + 8);
   static iVec select; select.resize(ncv);       // the bloody, allegedly not referenced array
-  static dVec workd; workd.resize(3*un_ng*2);        // Lanczos vectors
-//  std::cout << "workd.max_size: " << workd.max_size() << "\n";
-//  std::cout << "workd.size: " << workd.size() << "\n";
+  static dVec v; v.resize(ncv*ng*2);              // Lanczos basis
+  static dVec workd; workd.resize(3*ng*2);        // Lanczos vectors
   static dVec workl; workl.resize(lworkl*2);   // work space
-//  std::cout << "workl.max_size: " << workl.max_size() << "\n";
-//  std::cout << "workl.size: " << workl.size() << "\n";
-  static dVec resid; resid.resize(un_ng*2);       // residual vector
-//  std::cout << "resid.max_size: " << resid.max_size() << "\n";
-//  std::cout << "resid.size: " << resid.size() << "\n";
-//  std::cout << "ncv= " << ncv <<" ng= "<<ng<< "\n";
-  bigsize=un_ng*un_ncv*2;
-//  std::cout << "2 un_ng= " << un_ng << "\n";
-//  std::cout << "2 un_ncv= " << un_ncv << "\n";
-//  std::cout << "2 bigsize= " << bigsize << "\n";
-  static dVec v; v.resize(bigsize);              // Lanczos basis
-//  double *v;
-//  v =(double *)malloc(ncv*ng*2*sizeof(double));
-//  std::cout << "v.max_size: " << v.max_size() << "\n";
-//  std::cout << "v.size: " << v.size() << "\n";
-//  exit(0);
+  static dVec resid; resid.resize(ng*2);       // residual vector
 
 //  int iparam[11], ipntr[14];
   iparam[0] = 1;        //  exact shifts 
@@ -181,18 +156,14 @@ int DVR::larnoldi(int ng, int nev, int maxsub, int maxiter, int ptol, double *ev
   int nthreads, tid;
   int ido = 0;          // for the reverse communication interface
 
-  cout<<"define fft_engine"<<endl;
-  class VectorFFT fft_engine(&n_1dbas[0]);
-//  cout<<"end define fft_engine"<<endl;
 
 
 if (DiagCount == 1) {
-  
-  bigsize=un_ncv*un_ng;
-  SaveV.resize(bigsize);              // Lanczos basis
-  SaveWorkd.resize(3*un_ng);        // Lanczos vectors
+
+  SaveV.resize(ncv*ng);              // Lanczos basis
+  SaveWorkd.resize(3*ng);        // Lanczos vectors
   SaveWorkl.resize(lworkl);   // work space
-  SaveResid.resize(un_ng);
+  SaveResid.resize(ng);
   std::copy(&wavefn[0], &wavefn[ng-1], resid.begin());
 } 
 else {
@@ -202,12 +173,6 @@ else {
 
 }
 
-
-/*
- for (int i=0; i<ng; i++) {
- cout<<resid[i]<<endl;
- }
-*/
    if(rank==0)cout<<"DiagCount = "<<DiagCount<<endl;
 
   if(rank==0)std::cout << "dvrtype: " << dvrtype << std::endl;
@@ -220,50 +185,10 @@ else {
     fflush(stdout);
 
     icount++;
- /* 
- printf("lworkl = %10d \n", lworkl);
- printf("ido = %10d \n", ido);
- printf("bmat = %10s \n", bmat);
- printf("which = %10s \n", which);
-*/
-
-/*
- for (int i=0; i<30; i++) {
- printf("iparam = %10d \n", iparam[i]);
- }
-
-*/
-
-
+  
     DSAUPD(&ido, bmat, &ng, which, &nev, &tol, &resid[0], &ncv, &v[0], &ng,
 	   iparam, ipntr, &workd[0], &workl[0], &lworkl, &info);
 
-
-/*
-
- for (int i=0; i<63; i++) {
- printf("workd = %lf \n", workd[i]);
- }
-
- for (int i=0; i<9; i++) {
- printf("workl = %lf \n", workl[i]);
- }
-
- for (int i=0; i<9; i++) {
- printf("v = %lf \n", v[i]);
- }
-
-
- for (int i=0; i<9; i++) {
- cout<<"workd = "<<workd[i]<<endl;
- }
-
- for (int i=0; i<9; i++) {
- cout<<"workl = "<<workl[i]<<endl;
- }
- 
- printf("ido = %10d \n", ido);
-*/
     switch (ido)
       {
       case  1:
@@ -273,8 +198,7 @@ else {
           case 1:
             //TV: Calling the FFT
             if(dvrtype == 3) {
-              // VectorFFT(&workd[ipntr[0]-1], &workd[ipntr[1]-1]);
-               fft_engine.apply(&workd[ipntr[0]-1], &workd[ipntr[1]-1], &v_diag[0], &KE_diag[0]);
+               VectorFFT(&workd[ipntr[0]-1], &workd[ipntr[1]-1]);
             }
 	    else
                MatrixTimesVector(&workd[ipntr[0]-1], &workd[ipntr[1]-1]); 
@@ -298,11 +222,11 @@ else {
 	if(rank==0)printf("IDO = %d, INFO = %d; what is happening?\n", ido, info);
         exit(1);
       }
-// cout<<"DiagCount and icount%ncv = "<<DiagCount <<" "<<icount%ncv <<endl;
+
 if (DiagCount == 1 && icount%ncv ==2 ) {
-  std::copy(&resid[0], &resid[un_ng-1], SaveResid.begin());
-  std::copy(&v[0], &v[ncv*un_ng-1], SaveV.begin());
-  std::copy(&workd[0], &workd[3*un_ng-1], SaveWorkd.begin());
+  std::copy(&resid[0], &resid[ng-1], SaveResid.begin());
+  std::copy(&v[0], &v[ncv*ng-1], SaveV.begin());
+  std::copy(&workd[0], &workd[3*ng-1], SaveWorkd.begin());
   std::copy(&workl[0], &workl[lworkl-1], SaveWorkl.begin());
   for (int i=0; i < 11; i++) SaveIparam[i]=iparam[i];
 //  for (int i=0; i < 14; i++) SaveIpntr[i]=ipntr[i];

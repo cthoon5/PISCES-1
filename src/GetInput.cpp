@@ -4,6 +4,8 @@
 #include <cstring>
 #include <iostream>
 
+#include <mpi.h>
+
 #include "vecdefs.h"
 #include "Parameters.h"
 #include "tsin.h"
@@ -20,6 +22,9 @@ using namespace std;
 //
 void GetInputParameters(Parameters &P, TSIN Input)
 {
+
+  int rank;
+  MPI_Comm_rank( MPI_COMM_WORLD, &rank );
 
   // Job
   P.runtype    = Input.GetInt("Job", "runtype", 0);          
@@ -55,6 +60,7 @@ void GetInputParameters(Parameters &P, TSIN Input)
 	P.PotPara[4] = Input.GetDouble("ElectronPotential", "DipoleDamping", 1.7724);
 	P.PotPara[5] = Input.GetDouble("ElectronPotential", "ORepCoreScale", 4.4837);
 	P.PotPara[6] = Input.GetDouble("ElectronPotential", "EpsDrude", 0.5 / sqrt(P.PotPara[0]));
+	P.PotPara[10] = Input.GetDouble("ElectronPotential", "Rtol", 20.0 );
 	break;
       case 11:
 	P.PotPara[0] = Input.GetDouble("ElectronPotential", "Alpha", 9.745);
@@ -73,15 +79,15 @@ void GetInputParameters(Parameters &P, TSIN Input)
       case 1023:
         break ; 
       default:
-	cout << "GetInputParameters: unknown potential for the excess electron: " << P.PotFlag[0] << "\n";
+	if(rank == 0) cout << "GetInputParameters: unknown potential for the excess electron: " << P.PotFlag[0] << "\n";
 	exit(1);
       }
     
     if(P.PotFlag[5] == 1){   //#1 means default parameters are turned on
        P.PotFlag[0] = 3 ;
        P.PotFlag[1] = 2 ;
-       cout << "InternalParameters uses Damptype= " << P.PotFlag[1] << ", and \n" ;
-       cout << "                  Repulsive Pot = " << P.PotFlag[1] << "\n" ;
+       if(rank == 0)cout << "InternalParameters uses Damptype= " << P.PotFlag[1] << ", and \n" ;
+       if(rank == 0)cout << "                  Repulsive Pot = " << P.PotFlag[1] << "\n" ;
         
        switch (P.PotFlag[3]) {   //polarization model type
          case 1:
@@ -105,7 +111,7 @@ void GetInputParameters(Parameters &P, TSIN Input)
            P.PotPara[2] = 6.602 ;
            break;
          default:
-         cout << "GetInputParameters: this combination has unknown internal-parameters \n" ; 
+         if(rank == 0)cout << "GetInputParameters: this combination has unknown internal-parameters \n" ; 
          }
     }
   }
@@ -173,10 +179,10 @@ void GetInputParameters(Parameters &P, TSIN Input)
   //vkv
 
   // nice output
-  cout << "-----------------------------------------------------------------\n";
-  cout << "Input Parameters used:\n\n";
+  if(rank == 0)cout << "-----------------------------------------------------------------\n";
+  if(rank == 0) cout << "Input Parameters used:\n\n";
   P.Print();
-  cout << "-----------------------------------------------------------------\n";
+  if(rank == 0) cout << "-----------------------------------------------------------------\n";
 }
 
 
@@ -196,13 +202,17 @@ void GetInputParameters(Parameters &P, TSIN Input)
 //
 void GetWaterCoordinates(int nw, char **coorlines, double *WaterPos)
 {
+  int rank;
+  MPI_Comm_rank( MPI_COMM_WORLD, &rank );
+
+
   int i, add, line = 0;
   for (i = 0; i < nw; ++i) {
     char atomsymbol[2];
     double ox, oy, oz, h1x, h1y, h1z, h2x, h2y, h2z;
 
     if (sscanf(coorlines[line]," %s %lf %lf %lf", atomsymbol, &ox, &oy, &oz) != 4) {
-      cout << "Error reading input group Waters line" << line << ":"
+     if(rank==0) cout << "Error reading input group Waters line" << line << ":"
 	   << coorlines[line];
       exit(1);
     }
@@ -211,7 +221,7 @@ void GetWaterCoordinates(int nw, char **coorlines, double *WaterPos)
     line ++;
 
     if (sscanf(coorlines[line]," %s %lf %lf %lf", atomsymbol, &h1x, &h1y, &h1z) != 4) {
-      cout << "Error reading input group Waters line" << line << ":" 
+      if(rank==0)cout << "Error reading input group Waters line" << line << ":" 
 	   << coorlines[line];
       exit(1);
     }
@@ -220,7 +230,7 @@ void GetWaterCoordinates(int nw, char **coorlines, double *WaterPos)
     line ++;
       
     if (sscanf(coorlines[line]," %s %lf %lf %lf", atomsymbol, &h2x, &h2y, &h2z) != 4) {
-      cout << "Error reading input group Waters line" << line << ":" 
+      if(rank==0)cout << "Error reading input group Waters line" << line << ":" 
 	   << coorlines[line];
       exit(1);
     }
@@ -245,10 +255,14 @@ void GetWaterCoordinates(int nw, char **coorlines, double *WaterPos)
 //
 int ReadWatersGroup(TSIN Input, dVec &WaterPos)
 {
+
+  int rank;
+  MPI_Comm_rank( MPI_COMM_WORLD, &rank );
+
   char **coorlines;
   int nlines = Input.GetGroup("Waters", &coorlines);
   if (nlines % 3 != 0) 
-    {cout << "error in ReadWaterCoordinates: No of input lines is not a multiple of 3\n"; exit(1);}
+    {if(rank==0)cout << "error in ReadWaterCoordinates: No of input lines is not a multiple of 3\n"; exit(1);}
   int nwater = nlines / 3;
   
   WaterPos.resize(3*nlines, 0); // x, y, z for each atom
@@ -259,7 +273,7 @@ int ReadWatersGroup(TSIN Input, dVec &WaterPos)
     double ox, oy, oz, h1x, h1y, h1z, h2x, h2y, h2z;
 
     if (sscanf(coorlines[line]," %s %lf %lf %lf", atomsymbol, &ox, &oy, &oz) != 4) {
-      cout << "Error reading input group Waters line" << line << ":"
+      if(rank==0)cout << "Error reading input group Waters line" << line << ":"
 	   << coorlines[line];
       exit(1);
     }
@@ -268,7 +282,7 @@ int ReadWatersGroup(TSIN Input, dVec &WaterPos)
     line ++;
 
     if (sscanf(coorlines[line]," %s %lf %lf %lf", atomsymbol, &h1x, &h1y, &h1z) != 4) {
-      cout << "Error reading input group Waters line" << line << ":" 
+      if(rank==0)cout << "Error reading input group Waters line" << line << ":" 
 	   << coorlines[line];
       exit(1);
     }
@@ -277,7 +291,7 @@ int ReadWatersGroup(TSIN Input, dVec &WaterPos)
     line ++;
       
     if (sscanf(coorlines[line]," %s %lf %lf %lf", atomsymbol, &h2x, &h2y, &h2z) != 4) {
-      cout << "Error reading input group Waters line" << line << ":" 
+      if(rank==0)cout << "Error reading input group Waters line" << line << ":" 
 	   << coorlines[line];
       exit(1);
     }
@@ -325,6 +339,11 @@ int ReadWatersGroup(TSIN Input, dVec &WaterPos)
 //
 int GetStructure(FILE *flin, int natoms, int nboron, double *coordinates, double *results)
 {
+
+
+  int rank;
+  MPI_Comm_rank( MPI_COMM_WORLD, &rank );
+
   const int LineLength = 132;
   char buffer[LineLength+1];
   // overread leading empty lines
@@ -334,11 +353,11 @@ int GetStructure(FILE *flin, int natoms, int nboron, double *coordinates, double
   } while (strlen(buffer) < 2);
   // no of atoms:
   if (atol(buffer) != natoms + nboron)
-    {cout << "Error in GetStructure:atoms = " << natoms << " != >>>" << buffer << "<<<\n"; exit(1);}
+    {if(rank==0)cout << "Error in GetStructure:atoms = " << natoms << " != >>>" << buffer << "<<<\n"; exit(1);}
   // comment line
   // if data are present return them in results
   if(fgets(buffer, LineLength, flin) == 0)
-    {cout << "Error in GetStructure reading the comment line\n"; exit(1);}
+    {if(rank==0)cout << "Error in GetStructure reading the comment line\n"; exit(1);}
   {
     double ene, ebe, dpl, a, b, c; 
     if (sscanf(buffer,"Move %*i %lf %lf %lf", &ene, &ebe, &dpl) == 3) {
@@ -361,9 +380,9 @@ int GetStructure(FILE *flin, int natoms, int nboron, double *coordinates, double
   // first line may contain the position of the basis set as B
   if (nboron == 1) {
     if(fgets(buffer, LineLength, flin)==0)
-      {cout << "Error in GetStructure reading the boron atoms\n"; exit(1);}
+      {if(rank==0)cout << "Error in GetStructure reading the boron atoms\n"; exit(1);}
     if (buffer[0] != 'B')
-      {cout << "Error in GetStructure: no B found in " << buffer << "\n"; exit(1);}
+      {if(rank==0)cout << "Error in GetStructure: no B found in " << buffer << "\n"; exit(1);}
   }
 
   // read water monomers
@@ -372,23 +391,23 @@ int GetStructure(FILE *flin, int natoms, int nboron, double *coordinates, double
   for (int i = 0; i < nw; ++i) {
     int add = 9*i;
     if(fgets(buffer, LineLength, flin)==0)
-      {cout << "Error in GetStructure reading O line of water " << i << "\n"; exit(1);} 
+      {if(rank==0)cout << "Error in GetStructure reading O line of water " << i << "\n"; exit(1);} 
     if (sscanf(buffer, "O %lf %lf %lf", &x, &y, &z) != 3)
-      {cout << "Error in GetStructure reading O of water " << i << "\n"; exit(1);} 
+      {if(rank==0)cout << "Error in GetStructure reading O of water " << i << "\n"; exit(1);} 
     coordinates[add + 0] = x;
     coordinates[add + 1] = y;
     coordinates[add + 2] = z;
     if(fgets(buffer, LineLength, flin)==0)
-      {cout << "Error in GetStructure reading H1 line of water " << i << "\n"; exit(1);} 
+      {if(rank==0)cout << "Error in GetStructure reading H1 line of water " << i << "\n"; exit(1);} 
     if (sscanf(buffer, "H %lf %lf %lf", &x, &y, &z) != 3)
-      {cout << "Error in GetStructure reading H1 of water " << i << "\n"; exit(1);} 
+      {if(rank==0)cout << "Error in GetStructure reading H1 of water " << i << "\n"; exit(1);} 
     coordinates[add + 3] = x;
     coordinates[add + 4] = y;
     coordinates[add + 5] = z;
     if(fgets(buffer, LineLength, flin)==0)
-      {cout << "Error in GetStructure reading H2 line of water " << i << "\n"; exit(1);} 
+      {if(rank==0)cout << "Error in GetStructure reading H2 line of water " << i << "\n"; exit(1);} 
     if (sscanf(buffer, "H %lf %lf %lf", &x, &y, &z) != 3)
-      {cout << "Error in GetStructure reading H2 of water " << i << "\n"; exit(1);} 
+      {if(rank==0)cout << "Error in GetStructure reading H2 of water " << i << "\n"; exit(1);} 
     coordinates[add + 6] = x;
     coordinates[add + 7] = y;
     coordinates[add + 8] = z;

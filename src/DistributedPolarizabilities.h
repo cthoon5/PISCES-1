@@ -21,6 +21,7 @@ struct DistributedPolarizabilities
   iVec SiteList;
   dVec Alpha;
   dVec InvA;
+  dVec Tensor;
   dVec Epc;
 //  dVec dTij ; 
   dVec dT_x ; 

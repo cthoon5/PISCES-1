@@ -98,6 +98,10 @@ int WaterCluster::ReportNoOfPolSites(void)
 }
 
 
+double WaterCluster::ReportPolarization(void)
+{
+   return PolarizationEnergy; 
+}
 
 //////////////////////////////////////////////////////////////////////////
 //
@@ -590,7 +594,6 @@ void WaterCluster::ReportPolSitesAndField(int nSites, double *alpha, int *ipp, d
     exit(1);
   }
   
-  
   // compute the fields due to the permanent charges:   Epc = Sum_i Q_i*R_i / |R_i|^3
   if (verbose > 18) cout << "Computing fields due to permanent charges\n";
   for (int j = 0; j < nwaters; ++j) {
@@ -797,7 +800,8 @@ void WaterCluster::CalcInducedDipoles(int verbose)
    double dampCD = waters[0]->Damping[1];
    double dampDD = waters[0]->Damping[2];
 
-
+  // cout<<" dampCD and dampDD" << dampCD <<" "<<dampDD<<endl;
+   
    // initialize the polarizable sites
    i = 0;
    for (j = 0; j < nwaters; ++j) {
@@ -973,9 +977,10 @@ void WaterCluster::CalcInducedDipoles(int verbose)
             olddplx[i] = dipolex[i];   dipolex[i] = oldfac*olddplx[i] + newfac * alpha[i] * (field1x[i] + field2x[i]);
             olddply[i] = dipoley[i];   dipoley[i] = oldfac*olddply[i] + newfac * alpha[i] * (field1y[i] + field2y[i]);
             olddplz[i] = dipolez[i];   dipolez[i] = oldfac*olddplz[i] + newfac * alpha[i] * (field1z[i] + field2z[i]);
-            //     cout<<" new  dipole["<<i<<"]= "<< dipolex[i]<<" "<<dipoley[i]<<" "<<dipolez[i]<<"\n";
+               //  cout<<" new  dipole["<<i<<"]= "<< dipolex[i]<<" "<<dipoley[i]<<" "<<dipolez[i]<<"\n";
+               //  cout<<" old  dipole["<<i<<"]= "<< olddplx[i]<<" new : "<<dipolex[i]<<"\n";
          }
-         //     cout<<" new  dipole[1]= "<< dipolex[1]<<" "<<dipoley[1]<<" "<<dipolez[1]<<"\n";
+             // cout<<" new  dipole[1]= "<< dipolex[1]<<" "<<dipoley[1]<<" "<<dipolez[1]<<"\n";
          // check convergence
          tester = 0;
          for (i = 0;  i < nsites; ++i) {
@@ -1647,6 +1652,7 @@ double WaterCluster::CalcIntermolecularPotential(int verbose)
    NuclearRepulsionEnergy = 0; // these three are public member variables of Cluster with a somewhat misleading names
    LJEnergy = 0;               // the 1st is electrostatics+polarization, the 2nd is the van-der-Waals interaction
    ElectrostaticEnergy = 0;    // the 3rd is only the electrostatic contribution
+   PolarizationEnergy = 0;    // water-water polarization energy
 
    double elec=0;		//used to output the total elec. only
    double pol=0;		//output the total polarizaiton only
@@ -1679,8 +1685,10 @@ double WaterCluster::CalcIntermolecularPotential(int verbose)
          elec*AU2EV, elec*AU2KCAL, pol*AU2EV, pol*AU2KCAL, vdw*AU2EV, vdw*AU2KCAL); 
       printf("  Total energy of the neutral cluster:  %12.8f eV = %12.8f kcal\n", bind*AU2EV, bind*AU2KCAL);
    }
-   // cout<<"total energy "<<NuclearRepulsionEnergy+LJEnergy<<endl;
-   // cout<<"polarization energy "<<pol<<endl;
+ //   cout<<"total energy "<<NuclearRepulsionEnergy+LJEnergy<<endl;
+ //   cout<<"polarization energy "<<pol<<endl;
+    cout<<"ElectrostaticEnergy = "<<ElectrostaticEnergy<<endl;
+    PolarizationEnergy=pol;
 
    return NuclearRepulsionEnergy + LJEnergy;
 }
@@ -2388,7 +2396,7 @@ void FieldOfDipole(double &mx, double &my, double &mz, double &ax, double &ay, d
    double Txz = damp1*3.*Rx*Rz * OneOverR5;    double Tzx = Txz;
    double Tyz = damp1*3.*Ry*Rz * OneOverR5;    double Tzy = Tyz;
 
-   //printf("Tij(%14.7f)= %14.7f %14.7f %14.7f %14.7f %14.7f %14.7f\n", sqrt(R2), Txx, Tyy, Tzz, Txy, Txz, Tyz);
+  //  printf("Tij(%14.7f)= %14.7f %14.7f %14.7f %14.7f %14.7f %14.7f\n", sqrt(R2), Txx, Tyy, Tzz, Txy, Txz, Tyz);
 
    ex = Txx*mx + Txy*my + Txz*mz;
    ey = Tyx*mx + Tyy*my + Tyz*mz;

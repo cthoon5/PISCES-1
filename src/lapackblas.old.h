@@ -10,23 +10,23 @@ SUB( daxpy, daxpy, DAXPY, (int *)(double *)(double *)(int *)(double *)(int *));
 FUN( double, dnrm2, dnrm2, DNRM2, (int *)(double *)(int *) );
 FUN( double, ddot, ddot, DDOT, (int *)(const double *)(int *)(const double *)(int *));
 SUB( dsyev, dsyev, DSYEV, (const char *)(const char *)(int *)(double *)(int *)(double *)(double *)(int *)(int *));
-SUB( dgeev, dgeev, DGEEV, (const char *)(const char *)(int *)(double *)(int *)(double *)(double *)(double *)(int *)(double *)(int *)(double *)(int *)(int *));
 SUB( dsteqr, dsteqr, DSTEQR, (const char *)(int *)(double *)(double *)(double *)(int *)(double *)(int *));
+
 SUB( dgemv, dgemv, DGEMV, 
     (const char *)(const int *)(const int *)(const double *)(const double *)(const int *)(const double *)
     (const int *)(const double *)(double *)(const int *) );
 
 SUB( dsymv, dsymv, DSYMV, 
-     (const char *) // uplo
-     (const int *)  // n
-     (const double *) // alpha
+     (const char*) // uplo
+     (const int&)  // n
+     (const double&) // alpha
      (const double *) // ap
-     (const int *) // lda
-     (const double *) // x
-     (const int *) //incx
-     (const double *) // beta
+     (const int&) // lda
+     (const double*) // x
+     (const int&) //incx
+     (const double&) // beta
      (double *) // y
-     (const int *) // incy
+     (const int&) // incy
      );
 
 
@@ -99,6 +99,9 @@ SUB( dgetri, dgetri, DGETRI,
      (int*) // lwork 
      (int*) // info);
      );
+
+
+
 
 #undef SUB
 #undef FUN

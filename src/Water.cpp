@@ -236,7 +236,8 @@ void Water::SetupCharge(int chargeselector)
       RepulsionHH[0] = DPP_A2; RepulsionHH[1] = DPP_b2;
       
       Damping = new double[3];
-      Damping[0] = 0.; Damping[1] = 0.23; Damping[2] = 0.3;
+   //   Damping[0] = 0.; Damping[1] = 0.23; Damping[2] = 0.3;
+      Damping[0] = 0.; Damping[1] = 0.21; Damping[2] = 0.3;
       
       PolSites = TTM_NoOfPolSites;
       break;
@@ -280,7 +281,8 @@ void Water::SetupCharge(int chargeselector)
       RepulsionHH[0] = DPP_A2; RepulsionHH[1] = DPP_b2;
       
       Damping = new double[3];
-      Damping[0] = 0.; Damping[1] = 0.23; Damping[2] = 0.3;
+   //   Damping[0] = 0.; Damping[1] = 0.23; Damping[2] = 0.3;
+       Damping[0] = 0.; Damping[1] = 0.21; Damping[2] = 0.3;
       
       PolSites = TTM_NoOfPolSites;
       break;

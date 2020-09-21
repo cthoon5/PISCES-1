@@ -50,6 +50,9 @@ public:
    int ReportNoOfWaters(void);   
    int ReportNoOfSitesPerMonomer(void);
    int ReportNoOfPolSites(void);
+
+
+   double ReportPolarization(void);
    void ReportNoOfSites(int &nSites, int &nCharges, int &nDipoles);
 
 
@@ -99,6 +102,7 @@ private:
    double NuclearRepulsionEnergy; // these three are public member variables of Cluster with a somewhat misleading names
    double LJEnergy;               // the 1st is electrostatics+polarization, the 2nd is the van-der-Waals interaction
    double ElectrostaticEnergy;    // the 3rd is only the electrostatic contribution
+   double PolarizationEnergy;    //  water-water polarization energy
 
 
 

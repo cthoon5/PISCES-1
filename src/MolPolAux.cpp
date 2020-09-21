@@ -9,6 +9,8 @@
 
 using namespace std;
 
+#include "timer.hpp"
+
 #include "vecdefs.h"
 #include "lapackblas.h"
 
@@ -18,6 +20,8 @@ using namespace std;
 //
 void ComputeInvA(int nSites, const double *R, const double *alpha, double aThole, double *InvA, int verbose);
 void BuildPolarizationMatrix(int nSites, const double *R, const double *alpha, double aThole, double *A);
+void BuildTensor(int nSites, const double *R, const double *alpha, double aThole, double *Tensor);
+void SCF_inducedDipole(int nSites, const double *Tensor, const double *alpha, double aThole, double *Efield, double *mu);
 void CalcDDTensor(double *T, double *Rij, double alpha_i, double alpha_j, double aThole);
 void InvertMatrix(int n, double *A);
 
@@ -34,6 +38,7 @@ void InvertMatrix(int n, double *A);
 //
 void ComputeInvA(int nSites, const double *R, const double *alpha, double aThole, double *InvA, int verbose)
 {
+
 
   BuildPolarizationMatrix(nSites, R, alpha, aThole, InvA);  
   InvertMatrix(3*nSites, InvA);
@@ -98,6 +103,7 @@ void BuildPolarizationMatrix(int nSites, const double *R, const double *alpha, d
   int n = nSites;
   int n3 = 3*n; // dimension of super-matrix A and leading dimension of any block B
 
+
   for (int k = 0; k < n3*n3; ++k)
     A[k] = 0.0;
 
@@ -111,6 +117,8 @@ void BuildPolarizationMatrix(int nSites, const double *R, const double *alpha, d
   // diagonal blocks: Tij
   double rij[3];
   double T[9];
+
+  cout<<"nSites: "<<nSites<<endl;
 
   for (int i = 0; i < n; ++i) {
     for (int j = i+1; j < n; ++j) {
@@ -127,12 +135,136 @@ void BuildPolarizationMatrix(int nSites, const double *R, const double *alpha, d
   }
 }
 
+
+void BuildTensor(int nSites, const double *R, const double *alpha, double aThole, double *Tensor)
+{
+
+  int n = nSites;
+  int n3 = 3*n; // dimension of super-matrix A and leading dimension of any block B
+
+  double rij[3];
+  double T[9];
+  int iter=0;
+
+  for (int i = 0; i < n; ++i) {
+    for (int j = 0; j < n; ++j) {
+       if (j == i)
+         continue;
+
+      rij[0] = R[3*i+0] - R[3*j+0];
+      rij[1] = R[3*i+1] - R[3*j+1];
+      rij[2] = R[3*i+2] - R[3*j+2];
+      CalcDDTensor(T, rij, alpha[i], alpha[j], aThole);
+      for (int a = 0; a < 3; ++a)
+	for (int b = 0; b < 3; ++b) {
+            Tensor[9*iter+3*a+b]=T[3*a+b];
+        }
+      iter++;
+    }
+  }
+}
+
+
+void SCF_inducedDipole(int nSites, const double *Tensor, const double *alpha, double aThole, double *Efield, double *mu)
+{
+  int n = nSites;
+  int n3 = 3*n; // dimension of super-matrix A and leading dimension of any block B
+
+  // diagonal blocks: Tij
+  double rij[3];
+  double T[9];
+  double *field2 = new double[n3];
+  double *dipole = new double[n3];
+  double *olddipole = new double[n3];
+  double newfac = 0.5;
+  double oldfac = 1 - newfac;
+  double tester = 0;
+  int converged = 0;
+  int iter ;
+  int iteration;
+  int max_iterations = 100;  // I just made this up
+   double thresh = 1e-5;
+
+
+  for (int k = 0; k < n3; ++k) {
+    dipole[k] = 0;
+    dipole[k] = newfac * alpha[k/3] * Efield[k];
+   // cout<<"alpha[k/3]:"<<alpha[k/3]<<"  "<<Efield[k]<<endl;
+ }
+
+
+
+  for (iteration = 0; iteration < max_iterations; ++ iteration)
+ {
+
+  iter = 0;
+  for (int i = 0; i < n3; ++i) 
+    field2[i] = 0;
+
+  for (int i = 0; i < n; ++i) {
+    for (int j = 0; j < n; ++j) {
+       if (j == i)
+         continue;
+
+      for (int a = 0; a < 3; ++a)
+	for (int b = 0; b < 3; ++b) {
+            field2[i*3+a] += Tensor[9*iter+3*a+b]*dipole[j*3+b];
+           // cout<<i<<" "<<j<<" : T="<<Tensor[9*iter+3*a+b]<<" d="<<dipole[j*3+b]<<endl;          
+	   //cout<<" i : field2["<<i*3+a<<"]: "<<"dipole["<<j*3+b<<"]"<<endl;
+	   //cout<<" j : field2["<<j*3+a<<"]: "<<"dipole["<<j*3+b<<"]"<<endl;
+	   //cout<<" Tensor["<<9*iter+ 3*a+b<<"]: "<<Tensor[9*iter+3*a+b]<<endl;
+	}
+       iter++;
+    }
+  }
+
+   tester = 0;
+
+  for (int i = 0; i < n3; ++i) {
+     olddipole[i] = dipole[i];
+     dipole[i] = oldfac*olddipole[i] + newfac * alpha[i/3] * (Efield[i] + field2[i]);
+     //cout<<" field2["<<i<<"]= "<<field2[i]<<endl;
+     //cout<<" olddipole:"<<olddipole[i]<<" newdipole "<< dipole[i]<<endl;
+     double t = olddipole[i] - dipole[i];
+      tester += t*t;
+  }
+  // cout<<" ------------------------------------------------------ "<<endl;
+  
+  //check convergence
+    tester = sqrt(tester)/3/nSites;  // this is the average change
+    // cout<<"tester ="<<tester<<" thresh:"<<thresh<<endl;
+    if (tester < thresh) {
+        converged = 1;
+        break;
+    }
+
+  }
+
+  for (int i = 0; i < n3; ++i) 
+     mu[i] = dipole[i];
+
+   if (converged == 0) {
+       cout << "**** Warning in WaterCluster::CalcInducedDipoles():";
+       cout << " after " << max_iterations << " iterations the induced dipoles converged only to "
+          << tester << endl;
+    }
+    else
+       cout << "Induced dipoles converged to " << thresh << "after "<<iteration<<endl;
+
+
+  delete[] field2; delete[] dipole; delete[] olddipole;
+
+}
+
+
 /////////////////////////////////////////////////
 //
 //  symmetric matrix A is inverted in place
 //
 void InvertMatrix(int n, double *A)
 {
+
+  int verbose=1;
 
   int N = n;
   char uplo = 'U';
@@ -200,7 +332,7 @@ void CalcDDTensor(double *T, double *Rij, double alpha_i, double alpha_j, double
   T[2] = T[6] = fac1 * Rij[0]*Rij[2];
   T[5] = T[7] = fac1 * Rij[1]*Rij[2];
 
-  //printf("Tij(%14.7f)= %14.7f %14.7f %14.7f %14.7f %14.7f %14.7f\n", rij, T[0], T[4], T[8], T[1], T[2], T[5]);
+  //printf("Second: Tij(%14.7f)= %14.7f %14.7f %14.7f %14.7f %14.7f %14.7f\n", rij, T[0], T[4], T[8], T[1], T[2], T[5]);
 
 }
 

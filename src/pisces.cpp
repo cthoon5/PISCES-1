@@ -17,6 +17,9 @@
 #include <mpi.h>
 #endif
 
+#include <mpi.h>
+#include <fftw3-mpi.h>
+
 #include "timer.hpp"
 #include "tsin.h"
 #include "constants.h"
@@ -51,7 +54,6 @@
 // potfit includes
 #include "potfit.h"
 
-
 using namespace std;
 
 ///////////////////////////////////////////////////////////////////////
@@ -61,28 +63,43 @@ using namespace std;
 //
 int main(int argc, char* argv[])
 {
-   cout << "\nPittsburgh Infra Structure for Clusters with excess ElectronS\n";
+//  MPI_Init( &argc, &argv );
+  int provided, threads_ok;
+  MPI_Init_thread(&argc, &argv, MPI_THREAD_FUNNELED, &provided);
+  threads_ok=provided>=MPI_THREAD_FUNNELED;
+  cout<<"threads_ok = "<<threads_ok<<endl;
+
+  int rank, size;
+  MPI_Comm_size( MPI_COMM_WORLD, &size );
+  MPI_Comm_rank( MPI_COMM_WORLD, &rank );
+  MPI_Status status;
+
+  if(rank == 0)  cout << "\nPittsburgh Infra Structure for Clusters with excess ElectronS\n";
    progress_timer time("Total");
 
+  if(rank ==0) cout << "MPI: num of MPI ranks = " << size << endl;
    // mpiworkshare();
 
+
+
 #ifdef _OPENMP
-  cout << "OpenMP: num_threads = " << omp_get_max_threads() << endl;
+ if(rank == 0)  cout << "OpenMP: num_threads = " << omp_get_max_threads() << endl;
 #endif
 
   if (argc != 2)  {
-    cout << "usage: pisces input-file\n";
+    if(rank == 0) cout << "usage: pisces input-file\n";
     return EXIT_FAILURE;
   }
 
   // read input file and store it line-by-line in TSIN Input
   TSIN Input;
-  cout << "\nThis is the Input read from " << argv[1] << ":\n";
+  if(rank == 0) cout << "\nThis is the Input read from " << argv[1] << ":\n";
   Input.ReadFromFile(argv[1], 5);
 
   // Parse all input groups, and put parameters into InP
   Parameters InP;
   GetInputParameters(InP, Input);
+  
 
 
   // If dealing with water clusters, get the coordinates of the water monomers 

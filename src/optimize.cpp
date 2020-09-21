@@ -75,7 +75,7 @@ void Optimizer(dVec WaterPos, const Parameters InP)
     exit(1);
   }
 
-  if (InP.PotFlag[3] != 3) {
+  if (InP.PotFlag[3] != 3 && InP.PotFlag[3] != 6 ) {
     cout << "*** Error :: Only Polarization=3 gradients are implemented.\n Cannot use Polarization = " << InP.PotFlag[3]<< endl;
     exit(1);
   }
@@ -92,7 +92,7 @@ void Optimizer(dVec WaterPos, const Parameters InP)
   LBFGS(&ndim, &mdim, &WaterConf[0], GetClusterEnergy, GetGeometry, GetAnalGrad, &gtol);
   //  LBFGS(&ndim, &mdim, &WaterConf[0], GetClusterEnergy, GetNumGrad, &gtol);
   
- 
+
 //  GetClusterEnergy( &WaterConf[0]);
 //   dVec numgrad(nWater*6);
 //   Wn.GetNumGrad( &WaterConf[0], &numgrad[0]);

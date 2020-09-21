@@ -3,6 +3,7 @@
 #include <cstring>
 #include <cctype>
 
+#include <mpi.h>
 #include "tsin.h"
 
 
@@ -20,6 +21,9 @@
 int TSIN::ReadFromFile(const char *fname, int debug)
 {
   const int LineLength = 256;
+  int rank;
+  MPI_Comm_rank( MPI_COMM_WORLD, &rank );
+
 
   FILE   *flin;
   char   buffer[LineLength];
@@ -28,7 +32,7 @@ int TSIN::ReadFromFile(const char *fname, int debug)
 
   /* check existence of input file */
   if ((flin = fopen(fname,"r")) == NULL) {
-    printf("Error in tsinreadfl opening %s\n", fname);
+    if(rank==0)printf("Error in tsinreadfl opening %s\n", fname);
     exit(1);
   }
  
@@ -40,7 +44,7 @@ int TSIN::ReadFromFile(const char *fname, int debug)
     if (buffer[0] == '#' || l == 1)
       continue;
     if (nlines > TSINMaxLines) {
-      printf("Error in rdinputfl: more than %d non-comment lines.\n", TSINMaxLines);
+     if(rank==0) printf("Error in rdinputfl: more than %d non-comment lines.\n", TSINMaxLines);
       exit(1);
     }
     line[nlines] = new char[l+1];
@@ -50,11 +54,11 @@ int TSIN::ReadFromFile(const char *fname, int debug)
   fclose (flin);
 
   if (debug > 0)
-    printf("%d(%d) lines of %s have been read.\n", nread, nlines, fname);
+    if(rank==0)printf("%d(%d) lines of %s have been read.\n", nread, nlines, fname);
   if (debug > 1) {
     for (i = 0; i < nlines; i++)
-      printf("%3d  %s", i, line[i]);
-    printf("EOF\n");
+      if(rank==0)printf("%3d  %s", i, line[i]);
+    if(rank==0)printf("EOF\n");
   }
   return(nlines);
 }
@@ -73,6 +77,9 @@ int TSIN::GetGroup(const char *group, char ***inlines)
 {
   char groupkey[TSINSigSigns+6];
   
+  int rank;
+  MPI_Comm_rank( MPI_COMM_WORLD, &rank );
+
   // look for Begingroup
   strcpy(groupkey,"Begin");
   strncat(groupkey,group,TSINSigSigns);
@@ -83,8 +90,8 @@ int TSIN::GetGroup(const char *group, char ***inlines)
     i1 ++;
   }  
   if (i1 == TSIN::nlines) {
-    printf("Error in TSIN::GetGroup group:%s\n", group);
-    printf("Begin:group not found in input\n");
+    if(rank==0)printf("Error in TSIN::GetGroup group:%s\n", group);
+    if(rank==0) printf("Begin:group not found in input\n");
     exit(1);
   }
 
@@ -99,8 +106,8 @@ int TSIN::GetGroup(const char *group, char ***inlines)
     i2 ++;
   }  
   if (i2 == TSIN::nlines) {
-    printf("Error in TSIN::GetGroup group:%s\n", group);
-    printf("End:group not found in input\n");
+    if(rank==0)printf("Error in TSIN::GetGroup group:%s\n", group);
+    if(rank==0)printf("End:group not found in input\n");
     exit(1);
   }
 
@@ -133,6 +140,9 @@ int TSIN::GetInt(const char *group, const char *key, int defall)
   char *str = 0;
   char groupkey[TSINSigSigns+6];
   int i = 0;
+  int rank;
+  MPI_Comm_rank( MPI_COMM_WORLD, &rank );
+
   
   // look for Begingroup
   strcpy(groupkey,"Begin");
@@ -164,8 +174,8 @@ int TSIN::GetInt(const char *group, const char *key, int defall)
   // now we have str pointing at the keyword
   int r;
   if (sscanf(str, "%*s = %i", &r) != 1) {
-    printf("Error in TSIN::GetInt  group:%s  key:%s\n", group, key);
-    printf("Could not get argument from line:%s\n", line[i]);
+    if(rank==0)printf("Error in TSIN::GetInt  group:%s  key:%s\n", group, key);
+    if(rank==0)printf("Could not get argument from line:%s\n", line[i]);
     exit(1);
   }
   return(r);
@@ -187,6 +197,9 @@ long int TSIN::GetLong(const char *group, const char *key, long int defall)
   char groupkey[TSINSigSigns+6];
   int i = 0;
   
+  int rank;
+  MPI_Comm_rank( MPI_COMM_WORLD, &rank );
+
   // look for Begingroup
   strcpy(groupkey,"Begin");
   strncat(groupkey,group,TSINSigSigns);
@@ -217,8 +230,8 @@ long int TSIN::GetLong(const char *group, const char *key, long int defall)
   // now we have str pointing at the keyword
   long int r;
   if (sscanf(str, "%*s = %li", &r) != 1) {
-    printf("Error in TSIN::GetInt  group:%s  key:%s\n", group, key);
-    printf("Could not get argument from line:%s\n", line[i]);
+    if(rank==0)printf("Error in TSIN::GetInt  group:%s  key:%s\n", group, key);
+    if(rank==0)printf("Could not get argument from line:%s\n", line[i]);
     exit(1);
   }
   return(r);
@@ -242,6 +255,9 @@ double TSIN::GetDouble(const char *group, const char *key, double defall)
   int i = 0;
   char groupkey[TSINSigSigns+6];
   
+  int rank;
+  MPI_Comm_rank( MPI_COMM_WORLD, &rank );
+
   // look for group
   strcpy(groupkey,"Begin");
   strncat(groupkey,group,TSINSigSigns);
@@ -272,8 +288,8 @@ double TSIN::GetDouble(const char *group, const char *key, double defall)
   // now we have str pointing at the keyword
   double r;
   if (sscanf(str, "%*s = %lf", &r) != 1) {
-    printf("Error in TSIN::GetDouble  group:%s  key:%s\n", group, key);
-    printf("Could not get argument from line:%s\n", line[i]);
+    if(rank==0)printf("Error in TSIN::GetDouble  group:%s  key:%s\n", group, key);
+    if(rank==0)printf("Could not get argument from line:%s\n", line[i]);
     exit(1);
   }
   return(r);
@@ -294,6 +310,10 @@ void TSIN::GetString(const char *group, const char *key, const char *defall, cha
   char *str= 0;
   char groupkey[TSINSigSigns+6];
   int i = 0;
+
+  int rank;
+  MPI_Comm_rank( MPI_COMM_WORLD, &rank );
+
   // look for Begingroup
   strcpy(groupkey,"Begin");
   strncat(groupkey,group,TSINSigSigns);
@@ -369,6 +389,9 @@ void TSIN::GetIntArray(const char *group, const char *key, int *fill, int n)
   char *str = 0;
   int i = 0;
   char groupkey[TSINSigSigns+6];
+  int rank;
+  MPI_Comm_rank( MPI_COMM_WORLD, &rank );
+
 
   // look for group
   strcpy(groupkey,"Begin");
@@ -379,8 +402,8 @@ void TSIN::GetIntArray(const char *group, const char *key, int *fill, int n)
     i ++;
   }  
   if (i == TSIN::nlines) {
-    printf("Error in TSIN::GetIntArray group:%s, key:%s\n", group, key);
-    printf("group not found in input\n");
+    if(rank==0)printf("Error in TSIN::GetIntArray group:%s, key:%s\n", group, key);
+    if(rank==0)printf("group not found in input\n");
     exit(1);
   }
 
@@ -393,8 +416,8 @@ void TSIN::GetIntArray(const char *group, const char *key, int *fill, int n)
   strncat(groupkey,group,TSINSigSigns);
   while (i < TSIN::nlines) {
     if ((str = strstr(TSIN::line[i], groupkey)) != NULL) {
-      printf("Error in TSIN::GetIntArray group:%s, key:%s\n", group, key);
-      printf("End of group before key was found in input\n");
+      if(rank==0)printf("Error in TSIN::GetIntArray group:%s, key:%s\n", group, key);
+      if(rank==0)printf("End of group before key was found in input\n");
       exit(1);
     }
     if ((str = strstr(TSIN::line[i], key)) != NULL)
@@ -402,8 +425,8 @@ void TSIN::GetIntArray(const char *group, const char *key, int *fill, int n)
     i ++;
   }
   if (i == TSIN::nlines) {
-    printf("Error in TSIN::GetIntArray group:%s, key:%s\n", group, key);
-    printf("key not found in input\n");
+    if(rank==0)printf("Error in TSIN::GetIntArray group:%s, key:%s\n", group, key);
+    if(rank==0)printf("key not found in input\n");
     exit(1);
   }
 
@@ -414,8 +437,8 @@ void TSIN::GetIntArray(const char *group, const char *key, int *fill, int n)
 
   // 1st argument
   if (sscanf(str, "%*s = %i,", &fill[0]) != 1) {
-    printf("Error in TSIN::GetIntArray  group:%s  key:%s\n", group, key);
-    printf("Could not get 1st argument from line:%s\n", line[i]);
+    if(rank==0)printf("Error in TSIN::GetIntArray  group:%s  key:%s\n", group, key);
+    if(rank==0)printf("Could not get 1st argument from line:%s\n", line[i]);
     exit(1);
   }
 
@@ -426,14 +449,14 @@ void TSIN::GetIntArray(const char *group, const char *key, int *fill, int n)
     while (*str != ',') {
       str ++;
       if (*str == '\0') {
-	printf("Error in TSIN::GetIntArray  group:%s  key:%s\n", group, key);
-	printf("Could not get argument %i from line:%s\n", k+1, line[i]);
+	if(rank==0)printf("Error in TSIN::GetIntArray  group:%s  key:%s\n", group, key);
+	if(rank==0)printf("Could not get argument %i from line:%s\n", k+1, line[i]);
 	exit(1);
       }
     }
     if (sscanf(str, ", %i,", &fill[k]) != 1) {
-    printf("Error in TSIN::GetIntArray  group:%s  key:%s\n", group, key);
-    printf("Could not get argument %i from line:%s\n", k+1, line[i]);
+    if(rank==0)printf("Error in TSIN::GetIntArray  group:%s  key:%s\n", group, key);
+    if(rank==0)printf("Could not get argument %i from line:%s\n", k+1, line[i]);
     exit(1);
     }
   }
@@ -456,6 +479,9 @@ void TSIN::GetDoubleArray(const char *group, const char *key, double *fill, int 
   int i = 0;
   char groupkey[TSINSigSigns+6];
   
+  int rank;
+  MPI_Comm_rank( MPI_COMM_WORLD, &rank );
+
   // look for group
   strcpy(groupkey,"Begin");
   strncat(groupkey,group,TSINSigSigns);
@@ -465,8 +491,8 @@ void TSIN::GetDoubleArray(const char *group, const char *key, double *fill, int 
     i ++;
   }  
   if (i == TSIN::nlines) {
-    printf("Error in TSIN::GetDoubleArray group:%s, key:%s\n", group, key);
-    printf("group not found in input\n");
+    if(rank==0)printf("Error in TSIN::GetDoubleArray group:%s, key:%s\n", group, key);
+    if(rank==0)printf("group not found in input\n");
     exit(1);
   }
 
@@ -478,8 +504,8 @@ void TSIN::GetDoubleArray(const char *group, const char *key, double *fill, int 
   strncat(groupkey,group,TSINSigSigns);
   while (i < TSIN::nlines) {
     if ((str = strstr(TSIN::line[i], groupkey)) != NULL) {
-      printf("Error in TSIN::GetDoubleArray group:%s, key:%s\n", group, key);
-      printf("End of group before key was found in input\n");
+      if(rank==0)printf("Error in TSIN::GetDoubleArray group:%s, key:%s\n", group, key);
+      if(rank==0)printf("End of group before key was found in input\n");
       exit(1);
     }
     if ((str = strstr(TSIN::line[i], key)) != NULL)
@@ -487,8 +513,8 @@ void TSIN::GetDoubleArray(const char *group, const char *key, double *fill, int 
     i ++;
   }
   if (i == TSIN::nlines) {
-    printf("Error in TSIN::GetDoubleArray group:%s, key:%s\n", group, key);
-    printf("key not found in input\n");
+    if(rank==0)printf("Error in TSIN::GetDoubleArray group:%s, key:%s\n", group, key);
+    if(rank==0)printf("key not found in input\n");
     exit(1);
   }
 
@@ -500,8 +526,8 @@ void TSIN::GetDoubleArray(const char *group, const char *key, double *fill, int 
 
   // 1st argument
   if (sscanf(str, "%*s = %lf,", &fill[0]) != 1) {
-    printf("Error in TSIN::GetDoubleArray  group:%s  key:%s\n", group, key);
-    printf("Could not get 1st argument from line:%s\n", line[i]);
+    if(rank==0)printf("Error in TSIN::GetDoubleArray  group:%s  key:%s\n", group, key);
+    if(rank==0)printf("Could not get 1st argument from line:%s\n", line[i]);
     exit(1);
   }
 
@@ -512,14 +538,14 @@ void TSIN::GetDoubleArray(const char *group, const char *key, double *fill, int 
     while (*str != ',') {
       str ++;
       if (*str == '\0') {
-	printf("Error in TSIN::GetDoubleArray  group:%s  key:%s\n", group, key);
-	printf("Could not get argument %i from line:%s\n", k+1, line[i]);
+	if(rank==0)printf("Error in TSIN::GetDoubleArray  group:%s  key:%s\n", group, key);
+	if(rank==0)printf("Could not get argument %i from line:%s\n", k+1, line[i]);
 	exit(1);
       }
     }
     if (sscanf(str, ", %lf,", &fill[k]) != 1) {
-    printf("Error in TSIN::GetDoubleArray  group:%s  key:%s\n", group, key);
-    printf("Could not get argument %i from line:%s\n", k+1, line[i]);
+    if(rank==0)printf("Error in TSIN::GetDoubleArray  group:%s  key:%s\n", group, key);
+    if(rank==0)printf("Could not get argument %i from line:%s\n", k+1, line[i]);
     exit(1);
     }
   }

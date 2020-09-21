@@ -179,6 +179,7 @@ void Potential::EvaluateDPPGTOPGradient(
 
    // this just calculates a kind of cross product of mu^T x mu and accumulates density wighted mu
    // but is the most time consuming
+
    MuCrossMu( nAtoms, &mu[0] , tmu , mu_cross_mu, wavefn) ;  
 
 

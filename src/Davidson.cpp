@@ -241,6 +241,7 @@ int Davidson(int ndim,        // dimension of H, length of vectors in B and Z
       dscal(&ndim, &nrm, &ritzvecs[iroot*ndim], &one);
     }
 
+
     // compute residual vectors r = (H-lambda)Bv = (Z-lambdaB)v and residuals = |r|
     // (replace dgemv and daxpy calls by two dgemm? calls)
     for (int iroot = 0; iroot < nroots; ++iroot) {

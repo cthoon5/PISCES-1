@@ -4,6 +4,8 @@
 #include <ctime>
 #include <vector>
 
+#include <mpi.h>
+
 #include <iomanip>
 #include <fstream>
 #include <iostream>
@@ -24,6 +26,8 @@ using namespace std;
 void Molecule::SetupDPPWater(const double *WaterCoor)
 {
 
+  int rank;
+  MPI_Comm_rank( MPI_COMM_WORLD, &rank );
   Type = 1;
   nSites = 4;
   Tag = new char[nSites];
@@ -56,18 +60,22 @@ void Molecule::SetupDPPWater(const double *WaterCoor)
   nPntPols = 3;
   PntPolList.resize(nPntPols);
   PntPolSite.resize(nPntPols);
+//  PntPolSite[0] = 0; PntPolList[0] = 1.22 * Angs2Bohr*Angs2Bohr*Angs2Bohr;
+//  PntPolSite[1] = 1; PntPolList[1] = 0.28 * Angs2Bohr*Angs2Bohr*Angs2Bohr;
+//  PntPolSite[2] = 2; PntPolList[2] = 0.28 * Angs2Bohr*Angs2Bohr*Angs2Bohr;
   PntPolSite[0] = 0; PntPolList[0] = 0.837 * Angs2Bohr*Angs2Bohr*Angs2Bohr;
   PntPolSite[1] = 1; PntPolList[1] = 0.496 * Angs2Bohr*Angs2Bohr*Angs2Bohr;
   PntPolSite[2] = 2; PntPolList[2] = 0.496 * Angs2Bohr*Angs2Bohr*Angs2Bohr;
 
+   cout<<" PntPolList 0 and 1 "<<PntPolList[0]<<" "<<PntPolList[1]<<endl;
   int debug = 1;
 
   if (debug) {
-    printf("Input structure [Angs]:\n");
+    if(rank==0)printf("Input structure [Angs]:\n");
     for (int j = 0; j < 3; ++j)
-      printf("  %c  %12.7f  %12.7f  %12.7f\n", Tag[j], WaterCoor[3*j],  WaterCoor[3*j+1], WaterCoor[3*j+2]);
+      if(rank==0)printf("  %c  %12.7f  %12.7f  %12.7f\n", Tag[j], WaterCoor[3*j],  WaterCoor[3*j+1], WaterCoor[3*j+2]);
   }
-  cout.flush();
+  if(rank==0)cout.flush();
 
   // make rigid water: go to Euler angles, and rotate reference structure
   // if I ever needed the Euler angles, or the rotation matrix in Molecule
@@ -78,13 +86,13 @@ void Molecule::SetupDPPWater(const double *WaterCoor)
   RigidWater(WaterCoor, Angs2Bohr, Conf, &Coor[0], MSiteDisplacement); 
   
   if (debug) {
-    printf("Rigid structure [Angs]:\n");
+    if(rank==0)printf("Rigid structure [Angs]:\n");
     for (int j = 0; j < 4; ++j)
-      printf("  %c  %12.7f  %12.7f  %12.7f\n", Tag[j], Coor[3*j]*Bohr2Angs,  Coor[3*j+1]*Bohr2Angs, Coor[3*j+2]*Bohr2Angs);
-    printf("  center = %f, %f, %f\n", Conf[0]*Bohr2Angs, Conf[1]*Bohr2Angs, Conf[2]*Bohr2Angs);
-    printf("  Euler = %f, %f, %f\n", Conf[3], Conf[4], Conf[5]);
+      if(rank==0)printf("  %c  %12.7f  %12.7f  %12.7f\n", Tag[j], Coor[3*j]*Bohr2Angs,  Coor[3*j+1]*Bohr2Angs, Coor[3*j+2]*Bohr2Angs);
+    if(rank==0)printf("  center = %f, %f, %f\n", Conf[0]*Bohr2Angs, Conf[1]*Bohr2Angs, Conf[2]*Bohr2Angs);
+    if(rank==0)printf("  Euler = %f, %f, %f\n", Conf[3], Conf[4], Conf[5]);
     //exit(1);
   }
-  cout.flush();
+  if(rank==0)cout.flush();
 
 }

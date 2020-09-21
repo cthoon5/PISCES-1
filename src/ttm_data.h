@@ -52,8 +52,10 @@ const double DC_Mz  = TTM_Oz - 0.215;
 //  polarizable sites on O and H
 //
 const int TTM_NoOfPolSites = 3;
-const double TTM_POL_O = 0.837*pow(Angs2Bohr,3);
-const double TTM_POL_H = 0.496*pow(Angs2Bohr,3);
+//const double TTM_POL_O = 0.837*pow(Angs2Bohr,3);
+//const double TTM_POL_H = 0.496*pow(Angs2Bohr,3);
+const double TTM_POL_O = 1.22*pow(Angs2Bohr,3);
+const double TTM_POL_H = 0.28*pow(Angs2Bohr,3);
 //const double TTM_POL_H = 0.0;
 //const double TTM_POL_O = 0.0;
 

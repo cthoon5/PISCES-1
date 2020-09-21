@@ -17,6 +17,8 @@
 #include "Davidson.h"
 #include "Potential.h"
 #include "DVR.h"
+#include "VectorFFT.hpp"
+
 
 
 using namespace std;
@@ -42,6 +44,10 @@ int DVR::davdriver(int ng, int nstates, int maxsub, int maxiter, int ptol, int c
   //  compute diagonal
   ComputeDiagonal(&diag[0]);
 
+  cout<<"define fft_engine"<<endl;
+  class VectorFFT fft_engine(&n_1dbas[0]);
+
+
   //
   //  reverse-interface iteration
   // 
@@ -64,7 +70,8 @@ int DVR::davdriver(int ng, int nstates, int maxsub, int maxiter, int ptol, int c
 	  
           //TV: Calling the FFT
             if(dvrtype == 3)
-                 VectorFFT(&B[iB*ng], &Z[iZ*ng]);
+              //  VectorFFT(&B[iB*ng], &Z[iZ*ng]);
+               fft_engine.apply(&B[iB*ng], &Z[iZ*ng], &v_diag[0], &KE_diag[0]);
 	    else
                 MatrixTimesVector(&B[iB*ng], &Z[iZ*ng]);
 	  n_mtx ++;

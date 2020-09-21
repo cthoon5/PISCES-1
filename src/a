@@ -1,0 +1,144 @@
+C60.cpp://   returns the number ions actually found
+C60.cpp:  return nIons;
+C60.cpp:  return Vtotal ;
+C60.cpp:  return Velec ;
+C60.cpp:  return Velec ;
+C60.cpp:  return Vrep ; 
+C60.cpp:    cout << "DMDCBase::CallDSYEV: DSYEV returned with info = " << info << endl;
+C60.cpp:    cout << "DMDCBase::CallDSYEV: DSYEV returned with info = " << info << endl;
+C60.cpp:  return Vpol  ;
+C60.cpp:  return Vpol  ;
+C60.cpp:        return c1*c2*Ix*Iy*Iz*K;
+C60.cpp:        return c1*c2*Overlap;
+C60.cpp:        return result;
+ChargeDipPol.cpp:    cout << "DMDCBase::CallDSYEV: DSYEV returned with info = " << info << endl;
+ChargeDipPol.cpp:        return( (mat[0][0] * mat[1][1]) - (mat[1][0] * mat[0][1]));
+ChargeDipPol.cpp:    return d;
+ClusterAnion.cpp:  return Etotal ;
+ClusterAnion.cpp: return nWater*2.0 ;
+ClusterAnion.cpp:   return E0+EBE;
+davdriver.cpp:  return nConv;
+Davidson.cpp:    return 2*maxsub*maxsub + 11*maxsub + (2*nroots+1)*ndim;  // one additional vector for Jacobi correction
+Davidson.cpp:    return 2*maxsub*maxsub + 11*maxsub + 2*nroots*ndim;
+Davidson.cpp:             double *evals,   // returns converged eigenvalues
+Davidson.cpp:	     int &nConv,      // returns number of converged eigenpairs
+Davidson.cpp://   return codes:   0: done; converged (eval and B return the converged eigenpairs) or maxmacro exceeded
+Davidson.cpp://                            the number of converged vectors is returned in inout[0]
+Davidson.cpp:    //   this is the entry point for the next iteration and for the return from the mtx function
+Davidson.cpp:    //   so either return to multiply the new basis vector with H, or pass on into the loop  
+Davidson.cpp:      return 1; // code to do mtx with inout[2] vectors sittings in B[inout[0]]
+Davidson.cpp:      return 0;
+Davidson.cpp:	return 0;
+Davidson.cpp:    return;
+DPP.cpp:   return nwaters;
+DPP.cpp:   return nSitesPerMonomer;
+DPP.cpp://  this returns the numbers appropriate for the DPP model
+DPP.cpp://  return no of point-polarizable sites
+DPP.cpp:   return nwaters * 3;
+DPP.cpp:   return PolarizationEnergy; 
+DPP.cpp://  nW is the maximal no of waters to return
+DPP.cpp://  the actual no of water molecules returned is returned 
+DPP.cpp:      cout << "Warning: not all waters are returned by GetStructure\n";
+DPP.cpp:   return nwret;
+DPP.cpp://  nW is the maximal no of waters to return
+DPP.cpp://  the actual no of water molecules returned is returned 
+DPP.cpp:      cout << "Warning: not all waters are returned by GetConfiguration\n";
+DPP.cpp:   return nwret;
+DPP.cpp:      return CalcIntermolecularPotential(verbose);
+DPP.cpp:   return 0;
+DPP.cpp:      return CalcIntermolecularGradient(Grad, PolGrad, verbose);
+DPP.cpp:   return 0;
+DPP.cpp://  return lists with the objects needed for the excess electron Hamiltonian
+DPP.cpp:   return ime;
+DPP.cpp:   return NuclearRepulsionEnergy + LJEnergy;
+DPP.cpp:   return NuclearRepulsionEnergy + LJEnergy;
+DPP.cpp:      return 1.0-exp(-x);
+DPP.cpp:   //return 1.0;
+DPP.cpp:   //return -3.0*x*exp(-x)+2.0*(1.0-exp(-x));  //how it looks in thole, not quite correct for us
+DPP.cpp:   return 1.0-(1+x)*exp(-x);
+DPP.cpp:   //return 1.0;
+DPP.cpp:   return energy;
+DPP.cpp:   return energy;
+DPP.cpp:   return energy;
+DPP.cpp:   return energy;
+DPP.cpp:      return energy;
+DPP.cpp:      return energy;
+DVR.cpp:  return double(rand()) / RAND_MAX;
+DVR.cpp:    return double(rand()) / RAND_MAX;
+DVR.cpp:    return -double(rand()) / RAND_MAX;
+DVR.cpp:   return nconverged;
+DVR.cpp:   return i + n[X]* (j + n[Y]*(k) );
+DVR.cpp:   dVec Gradient; // unreduced return 
+DVR.cpp:    return wf;
+DVR.cpp:    return wf;
+edna.cpp:  return sqrt(dsqmin);
+Elec.cpp:  return Velec ;
+Elec.cpp:  return Vrep ; 
+fft_test.cpp:  return nconv;
+GetInput.cpp://  put coordinates into WaterPos, return the number of Water monomers found
+GetInput.cpp:  return nwater;
+GetInput.cpp://  are returned in results
+GetInput.cpp://  up to four values may be returned in results[]
+GetInput.cpp://  these 2 values are returned
+GetInput.cpp:      return 1;
+GetInput.cpp:  // if data are present return them in results
+GetInput.cpp:  return(0);
+larnoldi.cpp:  return nconv;
+Model_pot.cpp:  return Vtotal ;
+Molecule.cpp:  // RigidWater returns them, so far they are discarded
+mtx.cpp:   return i + n[X]* (j + n[Y]*(k));
+NaCl.cpp://   returns the number ions actually found
+NaCl.cpp:  return nIons;
+NaCl.cpp:  return Vel;
+optimize.cpp:   return Wn.EnergyFromConfiguration(configuration);;
+pisces.cpp:    return EXIT_FAILURE;
+pisces.cpp:  return EXIT_SUCCESS;
+pisces.cpp://   return EXIT_FAILURE;
+Potential.cpp: return MinR;
+Potential.cpp:      return EvaluateDPPGTOP(relectron);
+Potential.cpp:      return EvaluateDPPTB(relectron);
+Potential.cpp:      return EvaluateBloomfield(relectron);
+Potential.cpp:      return EvaluateCsixty(relectron);
+Potential.cpp:      return EvaluateSphericalPotential(relectron);
+Potential.cpp:  return 0;
+Potential.cpp:  return Vtotal;
+Potential.cpp:  return Vtotal;
+Potential.cpp:   return Vpc;
+Potential.cpp:   return Vpd;
+Potential.cpp:   return Vrep;
+Potential.cpp:   return Spol;
+Potential.cpp:  return Spol;
+Potential.cpp:  return Vpol;
+Potential.cpp:  return Vpol;
+Potential.cpp:  return Rtol; 
+Potential.cpp:  if ( PotFlags[0] == 1021) return PolFlagCsixty;
+Potential.cpp:  else  return PolType; 
+potfit.cpp:  return chi2;
+potfit.cpp:  return chisq;
+potfit.cpp:  return double(rand()) / (RAND_MAX + 1.0);
+potfit.cpp:    return double(rand()) / (RAND_MAX + 1.0);
+potfit.cpp:    return double(-rand()) / (RAND_MAX + 1.0);
+tsin.cpp:  return(nlines);
+tsin.cpp: *  search for group and return all the lines in inline
+tsin.cpp: *  return value is the number of lines copied to inlines
+tsin.cpp:  return ngroup;
+tsin.cpp: *  search in group for key and return the integer if key exists
+tsin.cpp:    return(defall);  // EOF before group was found
+tsin.cpp:      return(defall);  // end of group before key was found
+tsin.cpp:    return(defall);  // EOF before key was found
+tsin.cpp:  return(r);
+tsin.cpp: *  search in group for key and return the integer if key exists
+tsin.cpp:    return(defall);  // EOF before group was found
+tsin.cpp:      return(defall);  // end of group before key was found
+tsin.cpp:    return(defall);  // EOF before key was found
+tsin.cpp:  return(r);
+tsin.cpp: *  search in group for key and return the integer if key exists
+tsin.cpp:    return(defall);  // EOF before group was found
+tsin.cpp:      return(defall);  // end of group before key was found
+tsin.cpp:    return(defall);  // EOF before key was found
+tsin.cpp:  return(r);
+tsin.cpp: *  search in group for key and return the string if key exists
+tsin.cpp:    return;
+tsin.cpp:      return;
+tsin.cpp:    return;
+tsin.cpp:  return;
